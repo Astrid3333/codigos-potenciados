@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <stdlib.h>   // <-- agregar
+#include <stdlib.h>
 #include <stdint.h>
 static inline uint32_t randu_plus(uint32_t *s) {
     *s = 65539u * *s;
