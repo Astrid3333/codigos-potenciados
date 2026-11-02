@@ -248,6 +248,18 @@ static void test_aryabhata(void) {
             max_abs, max_abs < 7e-14 ? "✅" : "❌");
 }
 
+static void test_heron_q16(void) {
+    printf("\n=== Test 4: Heron Q16.16 (barrido completo) ===\n");
+    double worst = 0;
+    for (uint64_t S = 1; S <= 0xFFFFFFFFull; S += 4099) {
+        double r = heron_sqrt_q16((uint32_t)S) / 65536.0;
+        double ref = sqrt((double)S / 65536.0);
+        double ulp = fabs(r - ref) * 65536.0;
+        if (ulp > worst) worst = ulp;
+    }
+    printf("  Peor error: %.2f ulp (objetivo <= 2) %s\n", worst, worst <= 2 ? "✅" : "❌");
+}
+
 int main(void) {
     printf("╔════════════════════════════════════════════════════════════════════╗\n");
     printf("║  REVIVIR — Rutinas históricas reparadas para HW antiguo  ║\n");
@@ -256,6 +268,7 @@ int main(void) {
     test_crt_sum();
     test_heron();
     test_aryabhata();
+    test_heron_q16();
 
     printf("\n=== Demos rápidas ===\n");
     r1=r2=r3=0;
