@@ -88,15 +88,28 @@ static double heron_sqrt(double S) {
 /* Versión punto fijo Q16.16 para HW sin FPU — solo uint32_t */
 static uint32_t heron_sqrt_q16(uint32_t S_q16) {
     if (S_q16 == 0) return 0;
-    /* Normaliza: cuenta ceros a la izquierda para determinar el desplazamiento.
-       Valor inicial: 2^{ceil(bits/2)} en escala Q16.16. */
-    int leading_zeros = 0;
+    /* Para S_q16 en formato Q16.16: el valor real es S_q16 / 65536.
+       Queremos sqrt(S_q16) * 256 en salida Q16.16 (ya que output/65536
+       debe igualar sqrt(S_q16/65536) → output = 256 * sqrt(S_q16)).
+       
+       Si S_q16 tiene N bits, sqrt(S_q16) ≈ 2^{N/2}.
+       Entonces output ≈ 2^8 * 2^{N/2} = 2^{8 + N/2}.
+       
+       Ejemplos:
+       - S_q16 = 65536 (valor 1.0): bits ≈ 17, shift = 8 + 8 = 16, x = 2^16 = 65536 ✅
+       - S_q16 = 1 (valor 1/65536): bits = 1, shift = 8 + 0 = 8, x = 2^8 = 256 ✅
+       - S_q16 = 10000 (≈0.1526): bits = 14, shift = 8 + 7 = 15, x = 2^15 = 32768 */
     uint32_t s = S_q16;
-    if (s == 0) return 0;
-    while (s < (1u << 23)) { leading_zeros++; s <<= 1; }
-    /* Valor inicial: 2^{16 + leading_zeros/2} en escala Q16.16 */
-    uint32_t x = 1u << (16 + leading_zeros / 2);
-    x = (x + ((uint64_t)S_q16 << 16) / x) >> 1;
+    int bits = 0;
+    while (s > 0) { bits++; s >>= 1; }
+    /* shift = 8 + ceil(bits/2) pero usando enteros: bits/2 es división entera.
+       Para bits par: bits/2 exacto. Para bits impar: bits/2 redondea abajo,
+       pero sumamos 8 y el resultado sigue siendo aproximado, lo cual está bien. */
+    int shift = 8 + bits / 2;
+    if (shift > 24) shift = 24;   /* límite: 2^24 = 16777216 cabe en uint32_t */
+    if (shift < 0) shift = 0;
+    uint32_t x = 1u << shift;
+    /* 6 iteraciones de Heron con aritmética de 64-bit para precisión */
     x = (x + ((uint64_t)S_q16 << 16) / x) >> 1;
     x = (x + ((uint64_t)S_q16 << 16) / x) >> 1;
     x = (x + ((uint64_t)S_q16 << 16) / x) >> 1;
@@ -115,7 +128,7 @@ static uint32_t heron_sqrt_q16(uint32_t S_q16) {
  * Coeficiente exacto precalculado: K = 2·cos(h)
  * Para N=36000: h = 2π/36000 ≈ 1.745e-4
  * cos(h) = 1 - h²/2 + h⁴/24 - h⁶/720 + ...
- * K = 2 - h² + h⁴/12 - h⁶/360 + *
+ * K = 2 - h² + h⁴/12 - h⁶/360 + ...
  *
  * Valor precalculado a larga precisión (long double, ~19 dígitos):
  *   K = 1.99999996953825820433792159747099503874778747558594L
