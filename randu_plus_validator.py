@@ -34,6 +34,7 @@ def generate_binary(output_path: str, n_bytes: int, seed: int = 12345) -> None:
     # Creamos versión temporal
     with open('randu_plus_bin.c', 'w') as f:
         f.write('''#include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 static inline uint32_t randu_plus(uint32_t *s) {
     *s = 65539u * *s;
