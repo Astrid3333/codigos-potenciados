@@ -2,8 +2,8 @@
  *
  * Reemplazo directo de RANDU histórico (x_{n+1} = 65539 * x_n mod 2^32)
  * con un mezclador de bits (fmix32) que oculta estadísticamente el defecto de planos
-   (el estado interno cumple x[n+2] = 6·x[n+1] − 9·x[n] mod 2^32 y es recuperable
-   desde la salida; uso no criptográfico y estadístico está bien).
+ * (el estado interno cumple x[n+2] = 6·x[n+1] − 9·x[n] mod 2^32 y es recuperable
+ * desde la salida; uso no criptográfico y estadístico está bien).
  *
  * Uso:
  *   uint32_t seed = 12345;

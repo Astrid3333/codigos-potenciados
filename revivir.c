@@ -72,7 +72,7 @@ static uint64_t crt_reconstruct(void) {
 static double heron_sqrt(double S) {
     if (S <= 0.0) return 0.0;
     int exp;
-    double m = frexp(S, &exp);                 /* S = m * 2^exp, m ∈ [0.5, 1) */
+    frexp(S, &exp);                            /* descomponer S = m * 2^exp, m ∈ [0.5,1) */
     double x = ldexp(1.0, (exp + 1) >> 1);     /* 2^{ceil(exp/2)} */
 
     /* 6 iteraciones de Heron — solo +, *, / */
