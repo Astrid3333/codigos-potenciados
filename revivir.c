@@ -147,6 +147,7 @@ static void aryabhata_sine_gen(double *out, size_t n) {
     out[0] = 0.0;
     if (n == 1) return;
     out[1] = d;
+    s = d;   // s1 = s0 + d0, fija el estado para el bucle
     for (size_t i = 2; i < n; ++i) {
         d -= alpha * s;
         s += d;
