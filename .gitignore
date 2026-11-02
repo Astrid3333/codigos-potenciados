@@ -1,0 +1,9 @@
+.DS_Store
+*.swp
+*.swo
+*~
+colapso-2084/build/
+*.log
+revivir
+randu_plus
+randu_plus_bin
