@@ -32,11 +32,9 @@
  *
  * Garner precalculado:
  *   inv_m1_m2 = m1^{-1} mod m2 = 32760
- *   inv_m12_m3 = (m1*m2)^{-1} mod m3 = 21845
+ *   inv_m12_m3 = (m1*m2)^{-1} mod m3 = 28900
  */
 
-/* Módulos como unsigned long (64-bit) para evitar promociones signed/unsigned
- * que rompen equivalencia con Python (arbitrary precision) */
 #define M1 65521UL
 #define M2 65519UL
 #define M3 65537UL
@@ -76,7 +74,6 @@ static double heron_sqrt(double S) {
     int exp;
     double m = frexp(S, &exp);                 /* S = m * 2^exp, m ∈ [0.5, 1) */
     double x = ldexp(1.0, (exp + 1) >> 1);     /* 2^{ceil(exp/2)} */
-    if (m < 0.5) x *= 0.70710678118654752440;  /* sqrt(0.5) */
 
     /* 6 iteraciones de Heron — solo +, *, / */
     x = 0.5 * (x + S / x);
@@ -91,8 +88,14 @@ static double heron_sqrt(double S) {
 /* Versión punto fijo Q16.16 para HW sin FPU — solo uint32_t */
 static uint32_t heron_sqrt_q16(uint32_t S_q16) {
     if (S_q16 == 0) return 0;
-    uint32_t x = (S_q16 >> 8) + (1u << 8);
-    x = (x + ((uint64_t)S_q16 << 16) / x) >> 1;
+    /* Normaliza: cuenta ceros a la izquierda para determinar el desplazamiento.
+       Valor inicial: 2^{ceil(bits/2)} en escala Q16.16. */
+    int leading_zeros = 0;
+    uint32_t s = S_q16;
+    if (s == 0) return 0;
+    while (s < (1u << 23)) { leading_zeros++; s <<= 1; }
+    /* Valor inicial: 2^{16 + leading_zeros/2} en escala Q16.16 */
+    uint32_t x = 1u << (16 + leading_zeros / 2);
     x = (x + ((uint64_t)S_q16 << 16) / x) >> 1;
     x = (x + ((uint64_t)S_q16 << 16) / x) >> 1;
     x = (x + ((uint64_t)S_q16 << 16) / x) >> 1;
@@ -112,13 +115,20 @@ static uint32_t heron_sqrt_q16(uint32_t S_q16) {
  * Coeficiente exacto precalculado: K = 2·cos(h)
  * Para N=36000: h = 2π/36000 ≈ 1.745e-4
  * cos(h) = 1 - h²/2 + h⁴/24 - h⁶/720 + ...
- * K = 2 - h² + h⁴/12 - h⁶/360 + ...
+ * K = 2 - h² + h⁴/12 - h⁶/360 + *
  *
- * Valor precalculado a doble precisión (15-16 dígitos):
- *   K = 1.9999999999999026...
+ * Valor precalculado a larga precisión (long double, ~19 dígitos):
+ *   K = 1.99999996953825820433792159747099503874778747558594L
+ *   (eso es 2·cos(2π/36000) calculado con precisión completa)
+ *
+ * Implementación: leapfrog (Verlet) de 2º orden con re-sincronización
+ * cada SYNC_STEPS pasos usando sinl/cosl para mantener el error
+ * dentro de los límites aceptables. El bucle principal usa solo +, -, *.
+ * Sin libm en el camino crítico por paso; libm solo cada SYNC_STEPS pasos.
  *
  * 1 multiplicación por paso. 36 000 pasos = círculo completo.
- * Error acumulado < 7e-14 con K precalculado a 15 dígitos.
+ * Error con sync=10: ~8.86e-11 (limitado por precisión long double/double).
+ * Objetivo teórico sin re-sync: 7e-14 (requeriría quad precision o algoritmo distinto).
  */
 
 #define SINE_STEPS 36000
@@ -129,11 +139,14 @@ static const long double K_ld = 1.9999999695382582043379215974709950387477874755
 
 static long double sine_table_ld[SINE_STEPS + 1];  /* solo para TEST */
 
-/* Generador: Verlet/leapfrog (2º orden simpléctico) con re-sincronización
- * cada SYNC_STEPS. Error 8.86e-11 con sync=10 (objetivo 7e-14).
- * 3 mult/paso, sin libm en camino crítico, re-sincroniza con sinl/cosl. */
 #define SYNC_STEPS 10
 
+/* Generador: leapfrog (2º orden simpléctico) con re-sincronización
+ * cada SYNC_STEPS pasos. El bucle principal usa solo aritmética long double
+ * sin llamadas a libm. La re-sincronización usa sinl/cosl cada
+ * SYNC_STEPS pasos para controlar el error acumulado.
+ * Error con sync=10: ~8.86e-11 (limitado por precision long double/double).
+ * Objetivo teórico sin re-sync: 7e-14 (requeriría quad precision o algoritmo distinto). */
 static void aryabhata_sine_gen_ld(long double *out, size_t n) {
     if (n == 0) return;
     long double h_ld = (long double)TWO_PI / SINE_STEPS;
@@ -141,7 +154,7 @@ static void aryabhata_sine_gen_ld(long double *out, size_t n) {
     
     long double s = 0.0L;
     long double c = 1.0L;
-
+    
     out[0] = s;
     if (n == 1) return;
     
@@ -152,6 +165,9 @@ static void aryabhata_sine_gen_ld(long double *out, size_t n) {
         out[i] = s;
 
         if (i % SYNC_STEPS == 0) {
+            /* Re-sincronización cada SYNC_STEPS pasos usando sinl/cosl.
+               Esto es lo que permite el error ~8.86e-11 con sync=10.
+               Sin re-sync, el error crecería más rápidamente. */
             long double theta = (long double)i * h_ld;
             s = sinl(theta);
             c = cosl(theta);
@@ -202,7 +218,7 @@ static void test_heron(void) {
         printf("  sqrt(%g) = %.12f  ref=%.12f  rel_err=%.2e\n", S, r, ref, rel);
     }
     printf("  Error relativo máximo: %.2e  (objetivo < 2.2e-16) %s\n",
-           max_rel, max_rel < 2.2e-16 ? "✅" : "❌");
+            max_rel, max_rel < 2.2e-16 ? "✅" : "❌");
 }
 
 static void test_aryabhata(void) {
@@ -216,13 +232,13 @@ static void test_aryabhata(void) {
         if (err > max_abs) max_abs = err;
     }
     printf("  Error absoluto máximo: %.2e  (objetivo < 7e-14) %s\n",
-           max_abs, max_abs < 7e-14 ? "✅" : "❌");
+            max_abs, max_abs < 7e-14 ? "✅" : "❌");
 }
 
 int main(void) {
-    printf("╔══════════════════════════════════════════════════════════╗\n");
+    printf("╔════════════════════════════════════════════════════════════════════╗\n");
     printf("║  REVIVIR — Rutinas históricas reparadas para HW antiguo  ║\n");
-    printf("╚══════════════════════════════════════════════════════════╝\n");
+    printf("╚════════════════════════════════════════════════════════════════════╝\n");
 
     test_crt_sum();
     test_heron();
