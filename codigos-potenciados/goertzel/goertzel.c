@@ -1,10 +1,10 @@
-/* hastings.c - Formulaciones de Goertzel K, α, β, híbrida
+/* hastings.c - Implementaciones del algoritmo de Goertzel con tres formulaciones
  *
  * Implementa las tres formulaciones del algoritmo de Goertzel:
  *   - K = 2*cos(w)       (forma original, zona media)
  *   - α = 4*sin^2(w/2)   (forma para ω pequeño, cerca de 0)
- *   - β = 4*cos^2(w/2)   (espejo para ω cerca de π)
- *   - híbrida: α si w < π/2, β si w ≥ π/2
+ *   - β = 4*cos^2(w/2)   (espejo para w cerca de π)
+ *   - híbrida: α si w < π/2, β si w >= π/2
  *
  * Incluye una FFT radix-2 simple para comparación.
  *

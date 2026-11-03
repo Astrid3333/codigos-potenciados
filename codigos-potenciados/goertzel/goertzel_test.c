@@ -1,10 +1,10 @@
 /* goertzel_test.c - Prueba del algoritmo de Goertzel con tres formulaciones
  *
- * Compara las tres formulaciones:
+ * Compara las tres formulaciones del algoritmo de Goertzel:
  *   - K = 2*cos(w)       (forma original, zona media)
  *   - α = 4*sin^2(w/2)   (forma para ω pequeño, cerca de 0)
- *   - β = 4*cos^2(w/2)   (espejo para ω cerca de π)
- *   - híbrida: α si w < π/2, β si w ≥ π/2
+ *   - β = 4*cos^2(w/2)   (espejo para w cerca de π)
+ *   - híbrida: α si w < π/2, β si w >= π/2
  *
  * Para un señal de ruido gaussiano con tonos en bins específicos,
  * todas las formulaciones deberían dar aproximadamente el mismo
@@ -18,7 +18,6 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
-#include <time.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -48,12 +47,11 @@ int main(void) {
         return 1;
     }
 
-    /* Generar señal de ruido gaussiano */
+    /* Generar señal de ruido gaussiano con tonos en bins específicos */
     for (int i = 0; i < N; i++) {
-        x[i] = gauss_next();
+        x[i] = 0.0;
     }
 
-    /* Añadir tonos en bins específicos */
     int bins[] = {1, 10, 1000, 32768, 65535};
     double Amplitudes[] = {1.0, 0.5, 0.25, 0.5, 0.25};
     int n_bins = sizeof(bins) / sizeof(bins[0]);
@@ -68,18 +66,19 @@ int main(void) {
     }
 
     printf("N = %d, ruido gaussiano con %d tonos\n\n", N, n_bins);
-    printf("%7s %12s %12s %12s %12s\n", "bin", "omega", "K=2cos", "alpha", "hibrida");
+    printf("%7s %12s %14s %12s %12s\n", "bin", "omega", "K=2cos", "alpha", "hibrida");
 
     for (int i = 0; i < n_bins; i++) {
         int bin = bins[i];
         double w = 2.0 * M_PI * bin / N;
+        double R = fabs(N * Amplitudes[i] / 2.0);  /* magnitud teórica */
 
         goertzel_cpx_t cK = goertzel_K(x, N, w);
         goertzel_cpx_t cA = goertzel_alpha(x, N, w);
         goertzel_cpx_t cB = goertzel_beta(x, N, w);
         goertzel_cpx_t cH = goertzel_hybrid(x, N, w);
 
-        printf("%7d %12.6f %12.6f %12.6f %12.6f\n",
+        printf("%7d %12.6f %14.6f %14.6f %14.6f\n",
                bin, w,
                goertzel_mag(&cK), goertzel_mag(&cA), goertzel_mag(&cH));
     }

@@ -1,15 +1,18 @@
-/* hastings.c - Implementaciones de algoritmos matemáticos históricos y modernos
+/* goertzel.h - Implementaciones del algoritmo de Goertzel con tres formulaciones
  *
- * Implementa:
- *   - Goertzel K=2cos(w), α=4sin²(w/2), β=4cos²(w/2) (espejo para w cerca de π)
- *   - goertzel_hybrid: α si w < π/2, β si w ≥ π/2
- *   - Formas K, α, β de Goertzel para cálculo de coeficientes DFT
+ * Implementa las tres formulaciones del algoritmo de Goertzel:
+ *   - K = 2*cos(w)       (forma original, zona media)
+ *   - α = 4*sin^2(w/2)   (forma para ω pequeño, cerca de 0)
+ *   - β = 4*cos^2(w/2)   (espejo para w cerca de π)
+ *   - híbrida: α si w < π/2, β si w ≥ π/2
+ *
+ * Incluye una FFT radix-2 simple para comparación.
  *
  * Referencia experimental: N = 131072, ruido gaussiano, referencia long double.
  *   bin 1  (ω=4.8e-05):  K=4.8e-08,  α=1.7e-13, híbrida=1.7e-13
  *   bin 10 (w=4.8e-04):  K=2.3e-09,  α=5.4e-15, híbrida=5.4e-15
  *   bin 1000 (w=4.8e-02): K=4.9e-12, α=2.7e-14, híbrida=2.7e-14
- *   π/2 (k=32768):     K=3.5e-15,  α=6.4e-13, híbrida=6.1e-14
+ *   π/2 (bin 32768):     K=3.5e-15,  α=6.4e-13, híbrida=6.1e-14
  *   π   (k=65535):       K=4.3e-08,  α=2.4e-07, híbrida=2.5e-13
  *
  * Recomendación práctica:
