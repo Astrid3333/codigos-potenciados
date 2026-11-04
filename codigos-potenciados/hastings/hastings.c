@@ -186,8 +186,8 @@ double hastings_acos(double x) {
 
 double hastings_atan2(double y, double x) {
     if (x > 0) return hastings_atan(y / x).value;
-    if (x < 0 && y >= 0) return M_PI / 2.0 + hastings_atan(y / x).value;
-    if (x < 0 && y < 0) return -M_PI / 2.0 + hastings_atan(y / x).value;
+    if (x < 0 && y >= 0) return M_PI + hastings_atan(y / x).value;
+    if (x < 0 && y < 0) return -M_PI + hastings_atan(y / x).value;
     if (x == 0.0 && y > 0.0) return M_PI / 2.0;
     if (x == 0.0 && y < 0.0) return -M_PI / 2.0;
     return 0.0;
@@ -204,8 +204,8 @@ double hastings_pow(double base, double exp) {
 double hastings_sqrt(double x) {
     if (x < 0.0) return 0.0;
     if (x == 0.0) return 0.0;
-    double guess = x;
-    for (int i = 0; i < 10; i++) {
+    double guess = x > 1.0 ? x / 2.0 : x;
+    for (int i = 0; i < 20; i++) {
         guess = 0.5 * (guess + x / guess);
     }
     return guess;
