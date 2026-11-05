@@ -1,8 +1,14 @@
 #ifndef GOERTZEL_ARDUINO_H
 #define GOERTZEL_ARDUINO_H
 
+#if defined(ARDUINO) || defined(__AVR__)
 #include <Arduino.h>
+#else
 #include <math.h>
+#ifndef PI
+#define PI 3.14159265358979323846f
+#endif
+#endif
 
 /* Goertzel en float para Arduino (AVR: float == 32 bits, double == float)
  *
@@ -97,7 +103,7 @@ static const char DTMF_KEYS[4][4] = {
 };
 
 /* Calcular omega para una frecuencia dada fs y N */
-static inline float goertzel_omega(float freq, float fs, int n) {
+static inline float goertzel_omega(float freq, float fs) {
     return 2.0f * PI * freq / fs;
 }
 
