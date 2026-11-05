@@ -69,19 +69,6 @@ static uint64_t mod_pow(uint64_t a, uint64_t k, uint64_t m) {
     return result;
 }
 
-/* ---------- Extendido Euclides: encontrar x tal que a*x ≡ 1 (mod m) */
-static int64_t mod_inverse(uint64_t a, uint64_t m) {
-    int64_t old_r = a, r = m;
-    int64_t old_s = 1, s = 0;
-    while (r != 0) {
-        int64_t q = old_r / r;
-        int64_t tmp = old_r - q * r; old_r = r; r = tmp;
-        tmp = old_s - q * s; old_s = s; s = tmp;
-    }
-    if (old_r != 1) return -1; /* no hay inverso */
-    return (old_s % m + m) % m;
-}
-
 /* ---------- Análisis espectral ----------
  *
  * Para un LCG x_{n+1} = (a*x_n + c) mod m, los puntos k-dimensionales
@@ -169,13 +156,16 @@ lcg_spectral_result_t lcg_spectral_analyze(uint64_t a, uint64_t c, uint64_t m,
 
     /* Distancia mínima entre planos: d = 1 / ||h|| */
     /* Normalizado por m^(1/k): d_norm = d * m^(1/k) */
+    /* Un buen LCG tiene muchos planes (d_norm pequeño). Un malo (RANDU) */
+    /* tiene pocos planes (d_norm grande). El score se invierte para que */
+    /* 1.0 = ideal y valores bajos = malo. */
     if (best_norm < INFINITY && best_norm > 1e-9) {
         res.min_distance = 1.0 / best_norm;
         res.num_planes = best_count;
         double d_norm = res.min_distance * pow((double)m, 1.0 / (double)dim);
-        res.spectral_score = d_norm;
+        res.spectral_score = 1.0 / d_norm;  /* invertido: alto = bueno */
         if (res.spectral_score > 1.0) res.spectral_score = 1.0;
-        /* Umbral: score < 0.3 se considera malo (muchos planos cercanos) */
+        /* Umbral: score < 0.3 se considera malo (pocos planes distantes) */
         res.is_bad = (res.spectral_score < 0.3);
     } else {
         res.min_distance = 0.0;
@@ -252,12 +242,9 @@ lcg_period_result_t lcg_period_test(uint64_t a, uint64_t c, uint64_t m,
  */
 int lcg_plane_count_3d(uint64_t a, uint64_t c, uint64_t m) {
     int count = 0;
-    int seen[100000] = {0};
     int max_h = 50;
 
     uint64_t a2 = (a * a) % m;
-    uint64_t ac = (a * c) % m;
-    uint64_t c2 = (c * c) % m;
 
     /* Para x_{n+2} = a*x_{n+1} + c = a*(a*x_n + c) + c = a^2*x_n + a*c + c */
     /* El plano está dado por: h1*x_n + h2*x_{n+1} + h3*x_{n+2} ≡ 0 (mod m) */

@@ -23,20 +23,6 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-/* Generador de ruido gaussiano (Box-Muller) */
-static double gauss_next(void) {
-    static int have = 0;
-    static double saved = 0.0;
-    if (have) { have = 0; return saved; }
-    double u1 = (double)rand() / ((double)RAND_MAX + 1.0);
-    double u2 = (double)rand() / ((double)RAND_MAX + 1.0);
-    double r = sqrt(-2.0 * log(u1));
-    double th = 2.0 * M_PI * u2;
-    saved = r * cos(th);
-    have = 1;
-    return r * sin(th);
-}
-
 int main(void) {
     const int N = 1 << 17;  /* 131072 muestras */
     srand(1);
@@ -71,11 +57,9 @@ int main(void) {
     for (int i = 0; i < n_bins; i++) {
         int bin = bins[i];
         double w = 2.0 * M_PI * bin / N;
-        double R = fabs(N * Amplitudes[i] / 2.0);  /* magnitud teórica */
 
         goertzel_cpx_t cK = goertzel_K(x, N, w);
         goertzel_cpx_t cA = goertzel_alpha(x, N, w);
-        goertzel_cpx_t cB = goertzel_beta(x, N, w);
         goertzel_cpx_t cH = goertzel_hybrid(x, N, w);
 
         printf("%7d %12.6f %14.6f %14.6f %14.6f\n",

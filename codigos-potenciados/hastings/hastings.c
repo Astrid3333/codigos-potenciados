@@ -85,7 +85,9 @@ static const double hastings_log1p_coeffs[] = {
     0.333333333333333,
    -0.250000000000000,
     0.200000000000000,
-   -0.166666666666667
+   -0.166666666666667,
+    0.142857142857143,
+   -0.125000000000000
 };
 
 /* ---------- Evaluación de polinomio (Horner) ----------------------------- */
@@ -167,8 +169,8 @@ hastings_result_t hastings_log1p(double x) {
     if (x <= -1.0) return (hastings_result_t){-INFINITY, 0.0, 5};
     if (x > 1.0) {
         double t = (x - 1.0) / (x + 1.0);
-        double result = 0.6931471805599453 + t * hastings_eval_poly(hastings_log1p_coeffs, 6, t);
-        return (hastings_result_t){result, 1.0e-5, 5};
+        double result = 0.6931471805599453 + t * hastings_eval_poly(hastings_log1p_coeffs, 8, t);
+        return (hastings_result_t){result, 1.0e-5, 7};
     }
 
     /* Reducción de argumento para x >= 0.25:
@@ -177,12 +179,12 @@ hastings_result_t hastings_log1p(double x) {
      */
     if (x >= 0.25) {
         double t = (x - 1.0) / 2.0;
-        double result = 0.6931471805599453 + t * hastings_eval_poly(hastings_log1p_coeffs, 6, t);
-        return (hastings_result_t){result, 1.0e-5, 5};
+        double result = 0.6931471805599453 + t * hastings_eval_poly(hastings_log1p_coeffs, 8, t);
+        return (hastings_result_t){result, 1.0e-5, 7};
     }
 
-    double result = x * hastings_eval_poly(hastings_log1p_coeffs, 6, x);
-    return (hastings_result_t){result, 1.0e-5, 5};
+    double result = x * hastings_eval_poly(hastings_log1p_coeffs, 8, x);
+    return (hastings_result_t){result, 1.0e-5, 7};
 }
 
 double hastings_sin_full(double x) { return hastings_sin(x).value; }
@@ -254,7 +256,7 @@ static const double *poly_coeffs[] = {
     hastings_exp_coeffs,
     hastings_log1p_coeffs
 };
-static const int   poly_degrees[] = {5, 5, 5, 5};
+static const int   poly_degrees[] = {5, 5, 5, 7};
 static const double poly_ranges[][2] = {
     {0.0, M_PI / 2.0},
     {0.0, 1.0},
@@ -284,7 +286,7 @@ const hastings_info_t *hastings_info(const char *name) {
         {"sin",  5, 1.0e-5,  1.0e-5,  0.0,          M_PI / 2.0},
         {"atan", 5, 1.0e-5,  1.0e-5,  0.0,          1.0},
         {"exp",  5, 1.0e-5,  1.0e-5,  0.0,          1.0},
-        {"log1p",5, 1.0e-5,  1.0e-5,  0.0,          1.0}
+        {"log1p",7, 1.0e-5,  1.0e-5,  0.0,          1.0}
     };
     static const char *names[] = {"sin", "atan", "exp", "log1p"};
     for (int i = 0; i < 4; i++)
@@ -310,21 +312,6 @@ const hastings_info_t *hastings_info(const char *name) {
 
 static double cheb_map_to_t(double x, double a, double b) {
     return (2.0 * x - (a + b)) / (b - a);
-}
-
-static double cheb_eval(const double *c, int n, double t) {
-    double t0 = 1.0;
-    double t1 = t;
-    double result = c[0] * t0;
-    if (n == 1) return result;
-    result += c[1] * t1;
-    for (int k = 2; k < n; k++) {
-        double tk = 2.0 * t * t1 - t0;
-        result += c[k] * tk;
-        t0 = t1;
-        t1 = tk;
-    }
-    return result;
 }
 
 /* Calcular coeficientes de Chebyshev por muestreo en nodos de Chebyshev */
@@ -425,11 +412,10 @@ int remez_solve(remez_params_t *p) {
     for (int j = 0; j < n; j++) coeffs[j] = cheb_coeffs[j];
     free(cheb_coeffs);
 
-    /* Evaluar polinomio de Chebyshev en puntos iniciales */
+    /* Evaluar f(x) en puntos iniciales (no el polinomio de Chebyshev) */
     for (int i = 0; i < m; i++) {
         x[i] = p->a + (double)i / (double)(m - 1) * (p->b - p->a);
-        double t = cheb_map_to_t(x[i], p->a, p->b);
-        y[i] = cheb_eval(coeffs, n, t);
+        y[i] = p->f(x[i]);
     }
 
     int converged = 0;
@@ -439,21 +425,21 @@ int remez_solve(remez_params_t *p) {
     for (int iter = 0; iter < p->max_iterations; iter++) {
         iterations = iter;
 
-        /* Construir sistema: sum_j c_j * x_i^j + (-1)^i * E = y_i */
+        /* Construir sistema: sum_j c_j * x_i^j + (-1)^i * E = f(x_i) */
         for (int i = 0; i < m; i++) {
             double xp = 1.0;
             for (int j = 0; j < n; j++) {
                 A[i][j] = xp;
                 xp *= x[i];
             }
-            A[i][n - 1] = (i % 2 == 0) ? 1.0 : -1.0;
-            b[i] = y[i];
+            A[i][n] = (i % 2 == 0) ? 1.0 : -1.0;  /* columna para E */
+            b[i] = p->f(x[i]);  /* valor de la funcion objetivo, no del polinomio */
         }
 
-        if (solve_linear(A, b, n) != 0) break;
+        if (solve_linear(A, b, n + 1) != 0) break;
 
         for (int j = 0; j < n; j++) coeffs[j] = b[j];
-        E = b[n - 1];
+        E = b[n];
 
         /* Muestrear para encontrar extremos locales */
         for (int i = 0; i < ns; i++) {
