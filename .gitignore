@@ -7,3 +7,7 @@ colapso-2084/build/
 revivir
 randu_plus
 randu_plus_bin
+*_test
+goertzel_bench
+sine_fixed
+*.o
