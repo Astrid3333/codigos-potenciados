@@ -6,15 +6,17 @@
  *
  * Configuración:
  *   fs = 8000 Hz  (frecuencia de muestreo)
- *   N  = 205      (ventana de 25.6 ms)
+ *   N  = 205      (ventana de 25.6 ms @ 8kHz)
  *
  * Frecuencias DTMF:
  *   Filas:    697, 770, 852, 941 Hz
  *   Columnas: 1209, 1336, 1477, 1633 Hz
  *
  * Modo de uso:
- *   - SIMULATED (por defecto): genera tonos sintéticos para probar.
- *   - MICROPHONE: lee de analogRead(A0) a 8 kHz usando temporizador.
+ *   - SIMULATED (por defecto, USE_MICROPHONE=0): genera tonos sintéticos
+ *     para probar la detección.
+ *   - MICROPHONE (USE_MICROPHONE=1): lee de analogRead(A0) a 8 kHz usando
+ *     temporizador con micros().
  *
  * Para usar con micrófono real:
  *   #define USE_MICROPHONE 1
@@ -24,12 +26,11 @@
 
 #include <goertzel_arduino.h>
 
-#define FS        8000.0f   /* frecuencia de muestreo (Hz) */
-#define N         205       /* muestras por ventana (25.6 ms @ 8kHz) */
-#define USE_MICROPHONE 0    /* 1 = leer de analogRead, 0 = tono simulado */
+#define FS          8000.0f   /* frecuencia de muestreo (Hz) */
+#define N           205       /* muestras por ventana (25.6 ms @ 8kHz) */
+#define USE_MICROPHONE 0      /* 1 = leer de analogRead, 0 = tono simulado */
 
 float samples[N];
-int sample_idx = 0;
 
 /* Tabla de frecuencias DTMF */
 static const float ROW_FREQ[4] = {697.0f, 770.0f, 852.0f, 941.0f};
@@ -37,7 +38,6 @@ static const float COL_FREQ[4] = {1209.0f, 1336.0f, 1477.0f, 1633.0f};
 
 /* Generador de tono sintético para pruebas (simula entrada de micrófono) */
 float generate_dtmf_tone(char key, float t_seconds) {
-    /* Tabla de frecuencias por tecla */
     static const float row_freq[4] = {697.0f, 770.0f, 852.0f, 941.0f};
     static const float col_freq[4] = {1209.0f, 1336.0f, 1477.0f, 1633.0f};
 
@@ -53,7 +53,8 @@ float generate_dtmf_tone(char key, float t_seconds) {
            0.5f * sinf(2.0f * PI * col_freq[c] * t_seconds);
 }
 
-/* Detectar tecla en el buffer actual de muestras */
+/* Detectar tecla en el buffer actual de muestras.
+ * Devuelve el caracter detectado o 0 si no hay tecla clara. */
 char detect_dtmf_in_window(const float *samples) {
     float row_w[4], col_w[4];
     float row_mag[4], col_mag[4];
@@ -115,9 +116,20 @@ unsigned long tone_start = 0;
 
 void loop() {
 #if USE_MICROPHONE
-    /* Lee una ventana completa del micrófono */
+    /* Lee una ventana completa del micrófono y detecta */
     read_microphone_window(samples, N);
-    sample_idx = N;
+
+    char detected = detect_dtmf_in_window(samples);
+    if (detected && detected != last_key) {
+        Serial.print(F("Tecla detectada: "));
+        Serial.println(detected);
+        last_key = detected;
+    } else if (!detected) {
+        last_key = 0;
+    }
+
+    /* Pequeña pausa entre ventanas para no saturar la CPU */
+    delay(10);
 #else
     /* Simular recepción de una tecla DTMF cada 3 segundos */
     static const char *keys = "123456789*0#ABCD";
@@ -127,24 +139,23 @@ void loop() {
     unsigned long now = millis();
 
     if (now - last_tone > 3000) {
+        char key = keys[key_idx];
         key_idx = (key_idx + 1) % 16;
         last_tone = now;
         tone_start = now;
         Serial.print(F("Enviando tecla: "));
-        Serial.println(keys[key_idx]);
+        Serial.println(key);
     }
 
     /* Generar N muestras del tono actual con tiempo en segundos de punto flotante */
     unsigned long t_elapsed = now - tone_start;
     if (t_elapsed < 1500) {  /* tono activo durante 1.5 s */
-        char key = keys[(key_idx + 15) % 16];  /* tecla que se está enviando */
+        char key = keys[key_idx];  /* misma tecla que se anunció */
         float t0 = (float)t_elapsed / 1000.0f;  /* segundos de inicio de ventana */
         float dt = 1.0f / FS;                   /* 125 us por muestra */
         for (int i = 0; i < N; i++) {
             samples[i] = generate_dtmf_tone(key, t0 + (float)i * dt);
         }
-        sample_idx = N;
-#endif
 
         /* Detectar */
         char detected = detect_dtmf_in_window(samples);
@@ -155,11 +166,8 @@ void loop() {
         } else if (!detected) {
             last_key = 0;
         }
-#if USE_MICROPHONE
-        /* Pequeña pausa entre ventanas para no saturar la CPU */
-        delay(10);
-#endif
     }
+#endif
 
     delay(20);
 }
