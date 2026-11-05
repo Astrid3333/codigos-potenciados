@@ -87,7 +87,9 @@ static const double hastings_log1p_coeffs[] = {
     0.200000000000000,
    -0.166666666666667,
     0.142857142857143,
-   -0.125000000000000
+   -0.125000000000000,
+    0.111111111111111,
+   -0.100000000000000
 };
 
 /* ---------- Evaluación de polinomio (Horner) ----------------------------- */
@@ -169,8 +171,8 @@ hastings_result_t hastings_log1p(double x) {
     if (x <= -1.0) return (hastings_result_t){-INFINITY, 0.0, 5};
     if (x > 1.0) {
         double t = (x - 1.0) / (x + 1.0);
-        double result = 0.6931471805599453 + t * hastings_eval_poly(hastings_log1p_coeffs, 8, t);
-        return (hastings_result_t){result, 1.0e-5, 7};
+        double result = 0.6931471805599453 + t * hastings_eval_poly(hastings_log1p_coeffs, 10, t);
+        return (hastings_result_t){result, 1.0e-5, 9};
     }
 
     /* Reducción de argumento para x >= 0.25:
@@ -179,12 +181,12 @@ hastings_result_t hastings_log1p(double x) {
      */
     if (x >= 0.25) {
         double t = (x - 1.0) / 2.0;
-        double result = 0.6931471805599453 + t * hastings_eval_poly(hastings_log1p_coeffs, 8, t);
-        return (hastings_result_t){result, 1.0e-5, 7};
+        double result = 0.6931471805599453 + t * hastings_eval_poly(hastings_log1p_coeffs, 10, t);
+        return (hastings_result_t){result, 1.0e-5, 9};
     }
 
-    double result = x * hastings_eval_poly(hastings_log1p_coeffs, 8, x);
-    return (hastings_result_t){result, 1.0e-5, 7};
+    double result = x * hastings_eval_poly(hastings_log1p_coeffs, 10, x);
+    return (hastings_result_t){result, 1.0e-5, 9};
 }
 
 double hastings_sin_full(double x) { return hastings_sin(x).value; }
@@ -256,7 +258,7 @@ static const double *poly_coeffs[] = {
     hastings_exp_coeffs,
     hastings_log1p_coeffs
 };
-static const int   poly_degrees[] = {5, 5, 5, 7};
+static const int   poly_degrees[] = {5, 5, 5, 9};
 static const double poly_ranges[][2] = {
     {0.0, M_PI / 2.0},
     {0.0, 1.0},
@@ -286,7 +288,7 @@ const hastings_info_t *hastings_info(const char *name) {
         {"sin",  5, 1.0e-5,  1.0e-5,  0.0,          M_PI / 2.0},
         {"atan", 5, 1.0e-5,  1.0e-5,  0.0,          1.0},
         {"exp",  5, 1.0e-5,  1.0e-5,  0.0,          1.0},
-        {"log1p",7, 1.0e-5,  1.0e-5,  0.0,          1.0}
+        {"log1p",9, 1.0e-5,  1.0e-5,  0.0,          1.0}
     };
     static const char *names[] = {"sin", "atan", "exp", "log1p"};
     for (int i = 0; i < 4; i++)

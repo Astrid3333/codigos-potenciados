@@ -1,5 +1,5 @@
 /*
- * DTMF decoder con Goertzel en float para Arduino.
+ * DTMF decoder/decoder con Goertzel en float para Arduino.
  *
  * Lee muestras de audio (simulado o de micrófono), aplica Goertzel a las
  * 8 frecuencias DTMF y detecta la tecla pulsada.
@@ -31,6 +31,7 @@
 #define USE_MICROPHONE 0      /* 1 = leer de analogRead, 0 = tono simulado */
 
 float samples[N];
+int sample_idx = 0;
 
 /* Tabla de frecuencias DTMF */
 static const float ROW_FREQ[4] = {697.0f, 770.0f, 852.0f, 941.0f};
@@ -38,6 +39,7 @@ static const float COL_FREQ[4] = {1209.0f, 1336.0f, 1477.0f, 1633.0f};
 
 /* Generador de tono sintético para pruebas (simula entrada de micrófono) */
 float generate_dtmf_tone(char key, float t_seconds) {
+    /* Tabla de frecuencias por tecla */
     static const float row_freq[4] = {697.0f, 770.0f, 852.0f, 941.0f};
     static const float col_freq[4] = {1209.0f, 1336.0f, 1477.0f, 1633.0f};
 
@@ -53,8 +55,7 @@ float generate_dtmf_tone(char key, float t_seconds) {
            0.5f * sinf(2.0f * PI * col_freq[c] * t_seconds);
 }
 
-/* Detectar tecla en el buffer actual de muestras.
- * Devuelve el caracter detectado o 0 si no hay tecla clara. */
+/* Detectar tecla en el buffer actual de muestras */
 char detect_dtmf_in_window(const float *samples) {
     float row_w[4], col_w[4];
     float row_mag[4], col_mag[4];
@@ -113,12 +114,12 @@ void setup() {
 
 char last_key = 0;
 unsigned long tone_start = 0;
-static char current_key = 0;  /* tecla que se anunció y está sonando */
 
 void loop() {
 #if USE_MICROPHONE
     /* Lee una ventana completa del micrófono y detecta */
     read_microphone_window(samples, N);
+    sample_idx = N;
 
     char detected = detect_dtmf_in_window(samples);
     if (detected && detected != last_key) {
