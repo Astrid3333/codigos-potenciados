@@ -321,7 +321,7 @@ static int solve_linear(double **A, double *b, int n) {
         double maxv = fabs(A[col][col]);
         for (int r = col + 1; r < n; r++)
             if (fabs(A[r][col]) > maxv) { maxv = fabs(A[r][col]); piv = r; }
-        if (maxv < 1e-12) return -1;
+        if (maxv < 1e-15) return -1;
         if (piv != col) {
             double *tmp = A[col]; A[col] = A[piv]; A[piv] = tmp;
             double t = b[col]; b[col] = b[piv]; b[piv] = t;
@@ -374,16 +374,16 @@ int remez_solve(remez_params_t *p) {
         }
     }
 
-    /* Paso 1: Empezar con nodos de Chebyshev como puntos iniciales */
+    /* Paso 1: Empezar con puntos equiespaciados */
     for (int i = 0; i < m; i++) {
-        double theta = M_PI * (2 * i + 1) / (2.0 * m);
-        x[i] = (p->a + p->b) / 2.0 + (p->b - p->a) / 2.0 * cos(theta);
+        x[i] = p->a + (double)i / (double)(m - 1) * (p->b - p->a);
         y[i] = p->f(x[i]);
     }
 
     int converged = 0;
     int iterations = 0;
     double E = 0.0;
+    double E_prev = INFINITY;
 
     for (int iter = 0; iter < p->max_iterations; iter++) {
         iterations = iter;
@@ -403,6 +403,13 @@ int remez_solve(remez_params_t *p) {
 
         for (int j = 0; j < n; j++) coeffs[j] = b[j];
         E = b[n];
+
+        /* Convergencia por cambio relativo de E entre iteraciones */
+        if (iter > 0 && fabs(E - E_prev) < p->tolerance * fmax(fabs(E), 1e-300)) {
+            converged = 1;
+            break;
+        }
+        E_prev = E;
 
         /* Muestrear para encontrar extremos locales */
         for (int i = 0; i < ns; i++) {
@@ -433,6 +440,28 @@ int remez_solve(remez_params_t *p) {
                 y[sel] = ext_y[i];
                 last_sign = sgn;
                 sel++;
+            }
+        }
+
+        /* Si no hay suficientes alternantes, usar puntos equiespaciados
+         * como fallback para la siguiente iteración (y ya están en x[], y[]) */
+        if (sel < m) {
+            for (int i = 0; i < m; i++) {
+                x[i] = p->a + (double)i / (double)(m - 1) * (p->b - p->a);
+                y[i] = p->f(x[i]);
+            }
+        }
+
+        /* Verificar convergencia: el error debe equioscilar con amplitud |E| */
+        if (sel >= m) {
+            double max_err = 0.0;
+            for (int i = 0; i < m; i++) {
+                double e = fabs(y[i] - hastings_eval_poly(coeffs, n, x[i]));
+                if (e > max_err) max_err = e;
+            }
+            if (fabs(max_err - fabs(E)) < p->tolerance * fmax(fabs(E), 1e-300)) {
+                converged = 1;
+                break;
             }
         }
     }
