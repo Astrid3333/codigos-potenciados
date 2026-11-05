@@ -383,7 +383,7 @@ int remez_solve(remez_params_t *p) {
     int converged = 0;
     int iterations = 0;
     double E = 0.0;
-    double E_prev = INFINITY;
+    double E_prev = 0.0;
 
     for (int iter = 0; iter < p->max_iterations; iter++) {
         iterations = iter;
@@ -403,13 +403,6 @@ int remez_solve(remez_params_t *p) {
 
         for (int j = 0; j < n; j++) coeffs[j] = b[j];
         E = b[n];
-
-        /* Convergencia por cambio relativo de E entre iteraciones */
-        if (iter > 0 && fabs(E - E_prev) < p->tolerance * fmax(fabs(E), 1e-300)) {
-            converged = 1;
-            break;
-        }
-        E_prev = E;
 
         /* Muestrear para encontrar extremos locales */
         for (int i = 0; i < ns; i++) {
@@ -444,26 +437,22 @@ int remez_solve(remez_params_t *p) {
         }
 
         /* Si no hay suficientes alternantes, usar puntos equiespaciados
-         * como fallback para la siguiente iteración (y ya están en x[], y[]) */
+         * como fallback para la siguiente iteración. Cuando sel >= m - 1
+         * ya hay suficientes alternantes para verificar convergencia. */
         if (sel < m) {
             for (int i = 0; i < m; i++) {
                 x[i] = p->a + (double)i / (double)(m - 1) * (p->b - p->a);
                 y[i] = p->f(x[i]);
             }
+            if (sel < m - 1) continue;
         }
 
-        /* Verificar convergencia: el error debe equioscilar con amplitud |E| */
-        if (sel >= m) {
-            double max_err = 0.0;
-            for (int i = 0; i < m; i++) {
-                double e = fabs(y[i] - hastings_eval_poly(coeffs, n, x[i]));
-                if (e > max_err) max_err = e;
-            }
-            if (fabs(max_err - fabs(E)) < p->tolerance * fmax(fabs(E), 1e-300)) {
-                converged = 1;
-                break;
-            }
+        /* Verificar convergencia: el error de minimax |E| se estabiliza */
+        if (iter > 0 && fabs(E - E_prev) < p->tolerance * fmax(fabs(E), 1e-300)) {
+            converged = 1;
+            break;
         }
+        E_prev = E;
     }
 
     p->coeffs = coeffs;
