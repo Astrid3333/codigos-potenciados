@@ -113,6 +113,7 @@ void setup() {
 
 char last_key = 0;
 unsigned long tone_start = 0;
+static char current_key = 0;  /* tecla que se anunció y está sonando */
 
 void loop() {
 #if USE_MICROPHONE
@@ -139,18 +140,18 @@ void loop() {
     unsigned long now = millis();
 
     if (now - last_tone > 3000) {
-        char key = keys[key_idx];
+        current_key = keys[key_idx];
         key_idx = (key_idx + 1) % 16;
         last_tone = now;
         tone_start = now;
         Serial.print(F("Enviando tecla: "));
-        Serial.println(key);
+        Serial.println(current_key);
     }
 
     /* Generar N muestras del tono actual con tiempo en segundos de punto flotante */
     unsigned long t_elapsed = now - tone_start;
     if (t_elapsed < 1500) {  /* tono activo durante 1.5 s */
-        char key = keys[key_idx];  /* misma tecla que se anunció */
+        char key = current_key;  /* misma tecla que se anunció */
         float t0 = (float)t_elapsed / 1000.0f;  /* segundos de inicio de ventana */
         float dt = 1.0f / FS;                   /* 125 us por muestra */
         for (int i = 0; i < N; i++) {
