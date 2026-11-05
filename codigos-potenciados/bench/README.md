@@ -8,7 +8,7 @@ quedan fuera de esta copia.
 ## Origen
 
 - Repositorio: `lcl-bench` (`/home/astrid/Documents/OpenScience/sessions/2026-10-23-0117/`)
-- Commit de origen: `931d007` ("fix: regenerar hub_compare.json y aplicar correcciones de evaluadores")
+- Commit de origen: `abd818e` ("fix: agregar evaluador de Fortran para dsp_bin y regenerar hub_compare.json")
 - Fecha de copia: 2026-11-05
 
 ## Qué incluye
