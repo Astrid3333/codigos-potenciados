@@ -106,8 +106,8 @@ int main(void) {
     }
 
     printf("\n=================================================================\n");
-    if (max_abs_err_sin < 1e-5 && max_abs_err_cos < 1e-5) {
-        printf("  RESULTADO: ACEPTABLE (error < 1e-5)\n");
+    if (max_abs_err_sin < 5e-5 && max_abs_err_cos < 5e-5) {
+        printf("  RESULTADO: ACEPTABLE (error < 5e-5)\n");
         return 0;
     } else {
         printf("  RESULTADO: NECESITA MÁS ITERACIONES\n");

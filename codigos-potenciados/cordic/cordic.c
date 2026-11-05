@@ -4,12 +4,7 @@
  * únicamente sumas, restas y desplazamientos (shifts). No usa
  * multiplicaciones ni funciones trigonométricas en el bucle principal.
  *
- * Tres formulaciones:
- *   - K = forma original (uso de la ganancia K para normalizar)
- *   - alpha = forma con factor de corrección acumulado
- *   - híbrida = combina ambas según el rango del ángulo
- *
- * Referencia: Volder, 1959; Walther, 1971 (unificación).
+ * Referencia: Volder, 1959.
  */
 
 #include "cordic.h"
@@ -41,16 +36,18 @@ const double cordic_atan_table[CORDIC_ITERATIONS] = {
     0.000030517578114532, /* atan(2^-15)           */
 };
 
-/* ---------- Implementaciones públicas ---------------- */
+/* ---------- Implementación pública ----------------------------- */
 
 cordic_result_t cordic_sincos(double theta) {
-    int sign_sin = 1, sign_cos = 1;
+    double x = 1.0, y = 0.0, z = theta;
+    int i;
 
     /* Normalizar a [-pi, pi] */
     while (theta > M_PI) theta -= 2.0 * M_PI;
     while (theta < -M_PI) theta += 2.0 * M_PI;
 
     /* Reducir a [-pi/2, pi/2] usando identidades trigonometricas */
+    int sign_cos = 1, sign_sin = 1;
     if (theta > M_PI / 2.0) {
         theta = M_PI - theta;
         sign_cos = -1;
@@ -58,9 +55,7 @@ cordic_result_t cordic_sincos(double theta) {
         theta = -M_PI - theta;
         sign_cos = -1;
     }
-
-    double x = 1.0, y = 0.0, z = theta;
-    int i;
+    z = theta;
 
     for (i = 0; i < CORDIC_ITERATIONS; i++) {
         double sigma = (z >= 0.0) ? 1.0 : -1.0;

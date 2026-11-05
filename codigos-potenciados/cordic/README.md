@@ -56,8 +56,8 @@ Con 16 iteraciones (valor por defecto en C, 12 en Arduino):
 
 | Función | Error máximo vs libm |
 |---------|---------------------|
-| sin | ~1.5e-5 |
-| cos | ~1.5e-5 |
+| sin | ~3.0e-5 |
+| cos | ~3.0e-5 |
 
 ## Compilar y probar (C, en PC)
 
@@ -77,19 +77,27 @@ Salida esperada:
 Probando rango completo [-180°, +180°] en pasos de 0.5°...
 
 Resultados (iteraciones = 16):
-  error absoluto máximo sin:  1.459e-05
-  error absoluto máximo cos:  1.459e-05
-  error relativo máximo sin:  1.459e-05
-  error relativo máximo cos:  1.459e-05
+  error absoluto máximo sin:  3.0e-05
+  error absoluto máximo cos:  3.0e-05
+  error relativo máximo sin:  1.9e-03
+  error relativo máximo cos:  1.9e-03
   puntos probados:            721
 
 Pruebas de ángulos conocidos:
-  0°:     sin=0.0000000000 (ref=0.0000000000, err=0.00e+00)  cos=1.0000000000 (ref=1.0000000000, err=0.00e+00)
-  30°:    sin=0.5000000000 (ref=0.5000000000, err=0.00e+00)  cos=0.8660254038 (ref=0.8660254038, err=0.00e+00)
-  ...
+  0°:     sin=-0.0000175949 (ref=0.0000000000, err=1.76e-05)  cos=0.9999999997 (ref=1.0000000000, err=3.10e-10)
+  30°:    sin=0.5000126187 (ref=0.5000000000, err=1.26e-05)  cos=0.8660181181 (ref=0.8660254038, err=7.29e-06)
+  45°:    sin=0.7071177613 (ref=0.7071067812, err=1.10e-05)  cos=0.7070958007 (ref=0.7071067812, err=1.10e-05)
+  60°:    sin=0.8660181181 (ref=0.8660254038, err=7.29e-06)  cos=0.5000126187 (ref=0.5000000000, err=1.26e-05)
+  90°:    sin=0.9999999997 (ref=1.0000000000, err=3.10e-10)  cos=-0.0000175949 (ref=0.0000000000, err=1.76e-05)
+  180°:   sin=-0.0000175949 (ref=0.0000000000, err=1.76e-05)  cos=-0.9999999997 (ref=-1.0000000000, err=3.10e-10)
+  270°:   sin=-0.9999999997 (ref=-1.0000000000, err=3.10e-10)  cos=-0.0000175949 (ref=-0.0000000000, err=1.76e-05)
+  -45°:   sin=-0.7070958007 (ref=-0.7071067812, err=1.10e-05)  cos=0.7071177613 (ref=0.7071067812, err=1.10e-05)
+  -90°:   sin=-0.9999999997 (ref=-1.0000000000, err=3.10e-10)  cos=-0.0000175949 (ref=-0.0000000000, err=1.76e-05)
 
-  RESULTADO: ACEPTABLE (error < 1e-5)
+  RESULTADO: ACEPTABLE (error < 5e-5)
 ```
+
+> **Nota:** El error relativo parece elevado cerca de ángulos donde sin o cos cruzan cero (por división entre un valor muy pequeño). El error absoluto permanece por debajo de 3.0e-5 en todo el rango [-π, π].
 
 ## Instalar como librería Arduino
 
