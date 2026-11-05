@@ -312,10 +312,6 @@ static double cheb_map_to_t(double x, double a, double b) {
     return (2.0 * x - (a + b)) / (b - a);
 }
 
-static double cheb_map_to_x(double t, double a, double b) {
-    return (a + b) / 2.0 + t * (b - a) / 2.0;
-}
-
 static double cheb_eval(const double *c, int n, double t) {
     double t0 = 1.0;
     double t1 = t;
@@ -347,7 +343,6 @@ static void cheb_coefficients(double (*f)(double), double a, double b,
     for (int k = 0; k < n; k++) {
         double sum = 0.0;
         for (int i = 0; i < ns; i++) {
-            double t = cos(M_PI * (i + 0.5) / ns);
             sum += sy[i] * cos(k * M_PI * (i + 0.5) / ns);
         }
         coeffs[k] = (2.0 / ns) * sum;
