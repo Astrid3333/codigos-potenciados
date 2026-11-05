@@ -22,7 +22,7 @@
 static uint16_t ms_next_4(uint16_t x) {
     uint32_t sq = (uint32_t)x * (uint32_t)x;
     /* extraer 4 digitos del medio de 8 digitos con leading zeros */
-    char s[9];
+    char s[12];
     snprintf(s, sizeof(s), "%08u", sq);
     uint16_t mid = (uint16_t)((s[2] - '0') * 1000 +
                                (s[3] - '0') * 100 +

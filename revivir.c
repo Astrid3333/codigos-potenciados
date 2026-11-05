@@ -19,15 +19,15 @@
 #include <inttypes.h>
 #include <math.h>
 
-/* ════════════════════════════════════════════════════════════════════
+/* =========================================================================
  * 1. SUMA EXACTA 16-BIT — TEOREMA CHINO DEL RESTO (Garner)
- * ════════════════════════════════════════════════════════════════════
+ * =========================================================================
  *
  * 3 módulos primos de 16 bits:
  *   m1 = 65521  (primo < 2^16)
  *   m2 = 65519  (primo < 2^16)
  *   m3 = 65537  (primo de Fermat = 2^16+1)
- * M = m1*m2*m3 ≈ 2.81e14 > 1e6 * 65535 ≈ 6.55e10  ✓
+ * M = m1*m2*m3 ≈ 2.81e14 > 1e6 * 65535 ≈ 6.55e10  OK
  * Cada residuo cabe en uint16_t.
  *
  * Garner precalculado:
@@ -43,6 +43,7 @@
 #define INV_M12_M3 28900u
 
 /* Acumuladores de 32 bits: el residuo puede ser M-1 = 65536, que no cabe en uint16_t */
+#ifdef TEST
 static uint32_t r1 = 0, r2 = 0, r3 = 0;
 
 static inline void crt_accumulate(uint16_t x) {
@@ -60,9 +61,9 @@ static uint64_t crt_reconstruct(void) {
     return v12 + (uint64_t)M1 * (uint64_t)M2 * v3;          /* < M ≈ 2.8e14 */
 }
 
-/* ════════════════════════════════════════════════════════════════════
+/* =========================================================================
  * 2. RAÍZ CUADRADA — MÉTODO BABILÓNICO (HERON), 6 ITERACIONES
- * ════════════════════════════════════════════════════════════════════
+ * =========================================================================
  *
  * x_{n+1} = 0.5*(x_n + S/x_n)  — convergencia cuadrática
  * 6 iteraciones → error < 2.2e-16 para S ∈ [1e-6, 1e9]
@@ -96,8 +97,8 @@ static uint32_t heron_sqrt_q16(uint32_t S_q16) {
        Entonces output ≈ 2^8 * 2^{N/2} = 2^{8 + N/2}.
        
        Ejemplos:
-       - S_q16 = 65536 (valor 1.0): bits ≈ 17, shift = 8 + 8 = 16, x = 2^16 = 65536 ✅
-       - S_q16 = 1 (valor 1/65536): bits = 1, shift = 8 + 0 = 8, x = 2^8 = 256 ✅
+       - S_q16 = 65536 (valor 1.0): bits ≈ 17, shift = 8 + 8 = 16, x = 2^16 = 65536 OK
+       - S_q16 = 1 (valor 1/65536): bits = 1, shift = 8 + 0 = 8, x = 2^8 = 256 OK
        - S_q16 = 10000 (≈0.1526): bits = 14, shift = 8 + 7 = 15, x = 2^15 = 32768 */
     uint32_t s = S_q16;
     int bits = 0;
@@ -117,9 +118,9 @@ static uint32_t heron_sqrt_q16(uint32_t S_q16) {
     return x;   /* Q16.16 */
 }
 
-/* ════════════════════════════════════════════════════════════════════
+/* =========================================================================
  * 3. SENO — RECURRENCIA DE ARYABHATA (499 d.C.) USANDO SEGUNDAS DIFERENCIAS
- * ════════════════════════════════════════════════════════════════════
+ * =========================================================================
  *
  * Implementación numéricamente estable usando segundas diferencias.
  * Evita la pérdida de precisión de K = 2·cos(h) porque 2 - K = 3e-8 causa
@@ -154,10 +155,11 @@ static void aryabhata_sine_gen(double *out, size_t n) {
         out[i] = s;
     }
 }
+#endif
 
-/* ════════════════════════════════════════════════════════════════════
+/* =========================================================================
  * TEST — usa libm SOLO aquí
- * ════════════════════════════════════════════════════════════════════ */
+ * ========================================================================= */
 
 #ifdef TEST
 
@@ -175,7 +177,7 @@ static void test_crt_sum(void) {
     uint64_t got = crt_reconstruct();
     printf("  Esperado: %" PRIu64 "\n", exact);
     printf("  Obtenido: %" PRIu64 "\n", got);
-    printf("  %s\n", got == exact ? "✅ EXACTO" : "❌ FALLA");
+    printf("  %s\n", got == exact ? "EXACTO" : "FALLA");
 }
 
 static void test_heron(void) {
@@ -191,7 +193,7 @@ static void test_heron(void) {
         printf("  sqrt(%g) = %.12f  ref=%.12f  rel_err=%.2e\n", S, r, ref, rel);
     }
     printf("  Error relativo máximo: %.2e  (objetivo < 2.2e-16) %s\n",
-            max_rel, max_rel < 2.2e-16 ? "✅" : "❌");
+            max_rel, max_rel < 2.2e-16 ? "OK" : "FALLA");
 }
 
 static void test_aryabhata(void) {
@@ -206,7 +208,7 @@ static void test_aryabhata(void) {
         if (err > max_abs) max_abs = err;
     }
     printf("  Error absoluto máximo: %.2e  (objetivo 7e-14) %s\n",
-            max_abs, max_abs < 7e-14 ? "✅" : "❌");
+            max_abs, max_abs < 7e-14 ? "OK" : "FALLA");
 }
 
 static void test_heron_q16(void) {
@@ -218,13 +220,13 @@ static void test_heron_q16(void) {
         double ulp = fabs(r - ref) * 65536.0;
         if (ulp > worst) worst = ulp;
     }
-    printf("  Peor error: %.2f ulp (objetivo <= 2) %s\n", worst, worst <= 2 ? "✅" : "❌");
+    printf("  Peor error: %.2f ulp (objetivo <= 2) %s\n", worst, worst <= 2 ? "OK" : "FALLA");
 }
 
 int main(void) {
     printf("╔═════════════════════════════════════════════════════════════════════╗\n");
     printf("║  REVIVIR — Rutinas históricas reparadas para HW antiguo  ║\n");
-    printf("╚════════════════════════════════════════════════════════════════════╝\n");
+    printf("╚═════════════════════════════════════════════════════════════════════╝\n");
 
     test_crt_sum();
     test_heron();
