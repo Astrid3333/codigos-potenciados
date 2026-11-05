@@ -118,10 +118,21 @@ hastings_result_t hastings_atan(double x) {
     int sign = 1;
     if (x < 0) { sign = -1; x = -x; }
 
+    /* Reducción de argumento cerca de x = 1:
+     *   atan(x) = pi/4 + atan((x - 1) / (x + 1))
+     * lleva el argumento al entorno de 0, donde el polinomio Taylor es preciso.
+     * Se usa para x en [0.5, 2.0] (fuera de ese rango el polinomio directo ya es bueno).
+     */
+    if (x >= 0.5 && x <= 2.0) {
+        double t = (x - 1.0) / (x + 1.0);
+        double result = M_PI / 4.0 + t * hastings_eval_poly(hastings_atan_coeffs, 6, t * t);
+        return (hastings_result_t){sign * result, 1.0e-5, 5};
+    }
+
     if (x > 1.0) {
         double inv = 1.0 / x;
         double result = M_PI / 2.0 - inv * hastings_eval_poly(hastings_atan_coeffs, 6, inv * inv);
-        return (hastings_result_t){result, 1.0e-5, 5};
+        return (hastings_result_t){sign * result, 1.0e-5, 5};
     }
 
     double result = x * hastings_eval_poly(hastings_atan_coeffs, 6, x * x);
@@ -204,8 +215,14 @@ double hastings_pow(double base, double exp) {
 double hastings_sqrt(double x) {
     if (x < 0.0) return 0.0;
     if (x == 0.0) return 0.0;
-    double guess = x > 1.0 ? x / 2.0 : x;
-    for (int i = 0; i < 20; i++) {
+    /* Arranque basado en el exponente: frexp da mantissa en [0.5,1) y exp.
+     * sqrt(x) = sqrt(mantissa) * 2^(exp/2). Usamos 1.0 como arranque para
+     * sqrt(mantissa) (cercano a 1) y ldexp para escalar por 2^(exp/2). */
+    int exp;
+    frexp(x, &exp);
+    double guess = ldexp(1.0, exp / 2);
+    if (exp % 2 != 0) guess *= 1.4142135623730951; /* sqrt(2) */
+    for (int i = 0; i < 6; i++) {
         guess = 0.5 * (guess + x / guess);
     }
     return guess;
