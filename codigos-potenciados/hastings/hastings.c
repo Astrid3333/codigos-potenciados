@@ -152,7 +152,14 @@ hastings_result_t hastings_exp(double x) {
         return (hastings_result_t){result, 1.0e-5, 5};
     }
 
-    double result = 1.0 + x * hastings_eval_poly(hastings_exp_coeffs, 6, x);
+    /* Reducción de argumento para x en [0, 1]: exp(x) = exp(x/2)^2.
+     * Divide x por 2 hasta que quede en [0, 0.25], donde el polinomio
+     * Taylor de grado 5 es preciso, y luego eleva al cuadrado k veces. */
+    int k = 0;
+    double r = x;
+    while (r > 0.25) { r /= 2.0; k++; }
+    double result = 1.0 + r * hastings_eval_poly(hastings_exp_coeffs, 6, r);
+    for (int i = 0; i < k; i++) result *= result;
     return (hastings_result_t){result, 1.0e-5, 5};
 }
 
@@ -160,11 +167,21 @@ hastings_result_t hastings_log1p(double x) {
     if (x <= -1.0) return (hastings_result_t){-INFINITY, 0.0, 5};
     if (x > 1.0) {
         double t = (x - 1.0) / (x + 1.0);
-        double result = 0.6931471805599453 + t * hastings_eval_poly(hastings_log1p_coeffs, 6, t * t);
+        double result = 0.6931471805599453 + t * hastings_eval_poly(hastings_log1p_coeffs, 6, t);
         return (hastings_result_t){result, 1.0e-5, 5};
     }
 
-    double result = x * hastings_eval_poly(hastings_log1p_coeffs, 6, x * x);
+    /* Reducción de argumento para x >= 0.25:
+     * log1p(x) = ln(2) + log1p((x - 1) / 2)
+     * lleva [0.25, 1] a [-0.375, 0], donde el polinomio Taylor es preciso.
+     */
+    if (x >= 0.25) {
+        double t = (x - 1.0) / 2.0;
+        double result = 0.6931471805599453 + t * hastings_eval_poly(hastings_log1p_coeffs, 6, t);
+        return (hastings_result_t){result, 1.0e-5, 5};
+    }
+
+    double result = x * hastings_eval_poly(hastings_log1p_coeffs, 6, x);
     return (hastings_result_t){result, 1.0e-5, 5};
 }
 
