@@ -13,12 +13,21 @@
  *
  * Compilar: gcc -std=c89 -pedantic -Wall -Wextra -DTEST revivir.c -o revivir -lm
  *           gcc -std=c11 -O2 -DTEST revivir.c -o revivir -lm
+ *
+ * Nota C89: u64_t es unsigned long long (extensión común en GCC/MSVC).
+ *           En sistemas de 32 bits sin long long, usar otro tipo de 64 bits.
  */
 
 #include <stdio.h>
 #include <stddef.h>
 #include <math.h>
 
+/* u64_t: tipo de 64 bits cuando está disponible.
+ * En C99+: uint64_t (estándar).
+ * En C89: unsigned long (64 bits en la mayoría de sistemas de 64 bits;
+ *         32 bits en Windows de 32 bits — limitación conocida de C89,
+ *         no hay tipo de 64 bits estándar en C89).
+ */
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
 #include <stdint.h>
 #include <inttypes.h>
@@ -26,10 +35,9 @@ typedef uint64_t u64_t;
 #define PRIu64_STR PRIu64
 #define U64_C(x) (x##ULL)
 #else
-/* C89 fallback: unsigned long es de 64 bits en sistemas de 64 bits */
 typedef unsigned long u64_t;
 #define PRIu64_STR "lu"
-#define U64_C(x) (x##UL)
+#define U64_C(x) (x##L)
 #endif
 
 /* =========================================================================
@@ -72,7 +80,7 @@ static u64_t crt_reconstruct(void) {
     u64_t v12;
     u64_t v3;
 
-    v1 = r1;
+    v1 = (u64_t)r1;
     v2 = ((u64_t)r2 + M2 - (v1 % M2)) % M2;
     v2 = v2 * INV_M1_M2 % M2;
     v12 = v1 + (u64_t)M1 * v2;                 /* < M1*M2 ≈ 4.3e9 */
@@ -196,13 +204,12 @@ static void aryabhata_sine_gen(double *out, size_t n) {
 #ifdef TEST
 
 static void test_crt_sum(void) {
-    printf("\n=== Test 1: CRT Suma exacta (1M lecturas) ===\n");
-    r1 = r2 = r3 = 0;
     const u64_t N = 1000000;
-
-    /* Suma esperada: patrón 0,1,2,...65535 repetido */
     u64_t exact = 0;
     u64_t i;
+
+    printf("\n=== Test 1: CRT Suma exacta (1M lecturas) ===\n");
+    r1 = r2 = r3 = 0;
 
     for (i = 0; i < N; ++i) {
         crt_accumulate((unsigned short)(i % 65536));
@@ -217,7 +224,6 @@ static void test_crt_sum(void) {
 }
 
 static void test_heron(void) {
-    printf("\n=== Test 2: Heron sqrt (6 iter) ===\n");
     double max_rel;
     double test_vals[] = {1e-6, 1e-3, 1.0, 2.0, 10.0, 100.0, 1e4, 1e6, 1e9};
     size_t i;
@@ -227,6 +233,7 @@ static void test_heron(void) {
     double ref;
     double rel;
 
+    printf("\n=== Test 2: Heron sqrt (6 iter) ===\n");
     max_rel = 0.0;
     n_vals = sizeof(test_vals)/sizeof(test_vals[0]);
     i = 0;
@@ -244,7 +251,6 @@ static void test_heron(void) {
 }
 
 static void test_aryabhata(void) {
-    printf("\n=== Test 3: Aryabhata sine (segundas diferencias) ===\n");
     double s[SINE_STEPS + 1];
     double max_abs;
     int i;
@@ -252,6 +258,7 @@ static void test_aryabhata(void) {
     double ref;
     double err;
 
+    printf("\n=== Test 3: Aryabhata sine (segundas diferencias) ===\n");
     aryabhata_sine_gen(s, SINE_STEPS + 1);
     max_abs = 0.0;
     i = 0;
@@ -267,13 +274,13 @@ static void test_aryabhata(void) {
 }
 
 static void test_heron_q16(void) {
-    printf("\n=== Test 4: Heron Q16.16 (barrido completo) ===\n");
     double worst;
     u64_t S;
     double r;
     double ref;
     double ulp;
 
+    printf("\n=== Test 4: Heron Q16.16 (barrido completo) ===\n");
     worst = 0;
     S = 1;
     while (S <= U64_C(0xFFFFFFFF)) {
