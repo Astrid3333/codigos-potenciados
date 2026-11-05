@@ -10,7 +10,7 @@
  *
  * Configuración:
  *   fs = 8000 Hz  (frecuencia de muestreo)
- *   N  = 205      (muestras por tono, ~25.6 ms)
+ *   N  = 205      (muestras por tono, ~25.6 ms @ 8kHz)
  *
  * Frecuencias DTMF:
  *   Filas:    697, 770, 852, 941 Hz
@@ -23,7 +23,7 @@
 #include <cordic_arduino.h>
 
 #define FS          8000.0f   /* frecuencia de muestreo (Hz) */
-#define N           205       /* muestras por ventana (25.6 ms @ 8kHz) */
+#define N           205       /* muestras por tono (25.6 ms @ 8kHz) */
 #define OUTPUT_PIN  9         /* pin de salida PWM/DAC */
 
 /* Tabla de frecuencias DTMF */
@@ -53,7 +53,8 @@ static void dtmf_init(void) {
 }
 
 /* Generar una muestra de tono DTMF para la tecla dada.
- * Avanza las fases de la fila y columna correspondientes. */
+ * Avanza las fases de la fila y columna correspondientes.
+ * La fase se mantiene envuelta a [-π, π] para evitar desbordamiento. */
 static cordic_fixed16_t dtmf_next_sample(char key) {
     int r = -1, c = -1;
     for (int i = 0; i < 4; i++) {
@@ -70,6 +71,12 @@ static cordic_fixed16_t dtmf_next_sample(char key) {
     /* Avanzar fases para la próxima muestra */
     row_phase[r] += cordic_radians_to_fixed16(2.0 * PI * ROW_FREQ[r] / FS);
     col_phase[c] += cordic_radians_to_fixed16(2.0 * PI * COL_FREQ[c] / FS);
+
+    /* Envolver fase a [-π, π] para que CORDIC no pierda precisión */
+    if (row_phase[r] > CORDIC_FIXED16_ONE) row_phase[r] -= 2 * CORDIC_FIXED16_ONE;
+    if (row_phase[r] < -CORDIC_FIXED16_ONE) row_phase[r] += 2 * CORDIC_FIXED16_ONE;
+    if (col_phase[c] > CORDIC_FIXED16_ONE) col_phase[c] -= 2 * CORDIC_FIXED16_ONE;
+    if (col_phase[c] < -CORDIC_FIXED16_ONE) col_phase[c] += 2 * CORDIC_FIXED16_ONE;
 
     /* Mezclar ambos tonos (mitad cada uno) */
     return (cordic_fixed16_t)((row_sin + col_sin) / 2);
@@ -92,13 +99,13 @@ void setup() {
 
     dtmf_init();
 
-    Serial.println(F("DTMF generator con CORDIC (float point Q15)"));
+    Serial.println(F("DTMF generator con CORDIC (punto fijo Q15)"));
     Serial.println(F("Tono: 123456789*0#ABCD, 1.5s cada tecla"));
     Serial.println(F("Conectar altavoz al pin 9 (o DAC)"));
     Serial.println();
 }
 
-char last_key = 0;
+char current_key = 0;
 unsigned long tone_start = 0;
 
 void loop() {
