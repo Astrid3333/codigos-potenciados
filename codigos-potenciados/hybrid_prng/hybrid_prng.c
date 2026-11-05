@@ -86,6 +86,7 @@ static int ms_zero_sink_4(void) {
     return zero_sink;
 }
 
+#ifdef HYBRID_PRNG_MAIN
 int main(void) {
     printf("=== hybrid_prng (middle-square + msws64) - Test ===\n\n");
 
@@ -148,3 +149,4 @@ int main(void) {
     free(doubles);
     return 0;
 }
+#endif /* HYBRID_PRNG_MAIN */

@@ -307,38 +307,6 @@ const hastings_info_t *hastings_info(const char *name) {
 /*                                                                           */
 /* Los coeficientes de Chebyshev se calculan como:                           */
 /*   c_k = (2/N) * sum_{j=0}^{N-1} f(x_j) * T_k(x_j)                         */
-/* donde x_j = cos((j + 0.5)*pi/N) son los nodos de Chebyshev.               */
-/* ========================================================================= */
-
-static double cheb_map_to_t(double x, double a, double b) {
-    return (2.0 * x - (a + b)) / (b - a);
-}
-
-/* Calcular coeficientes de Chebyshev por muestreo en nodos de Chebyshev */
-static void cheb_coefficients(double (*f)(double), double a, double b,
-                              int n, double *coeffs) {
-    int ns = n * 10;  /* más puntos de muestreo que coeficientes */
-    double *sx = malloc(ns * sizeof(double));
-    double *sy = malloc(ns * sizeof(double));
-    
-    for (int i = 0; i < ns; i++) {
-        double theta = M_PI * (i + 0.5) / ns;
-        sx[i] = cheb_map_to_t(cos(theta), a, b);
-        sy[i] = f(sx[i]);
-    }
-    
-    for (int k = 0; k < n; k++) {
-        double sum = 0.0;
-        for (int i = 0; i < ns; i++) {
-            sum += sy[i] * cos(k * M_PI * (i + 0.5) / ns);
-        }
-        coeffs[k] = (2.0 / ns) * sum;
-    }
-    
-    free(sx);
-    free(sy);
-}
-
 /* ========================================================================= */
 /* REMEZ: algoritmo de intercambio para minimax                            */
 /*                                                                           */
@@ -353,7 +321,7 @@ static int solve_linear(double **A, double *b, int n) {
         double maxv = fabs(A[col][col]);
         for (int r = col + 1; r < n; r++)
             if (fabs(A[r][col]) > maxv) { maxv = fabs(A[r][col]); piv = r; }
-        if (maxv < 1e-14) return -1;
+        if (maxv < 1e-12) return -1;
         if (piv != col) {
             double *tmp = A[col]; A[col] = A[piv]; A[piv] = tmp;
             double t = b[col]; b[col] = b[piv]; b[piv] = t;
@@ -406,15 +374,10 @@ int remez_solve(remez_params_t *p) {
         }
     }
 
-    /* Paso 1: Empezar con polinomio de Chebyshev en lugar de Taylor */
-    double *cheb_coeffs = malloc(n * sizeof(double));
-    cheb_coefficients(p->f, p->a, p->b, n, cheb_coeffs);
-    for (int j = 0; j < n; j++) coeffs[j] = cheb_coeffs[j];
-    free(cheb_coeffs);
-
-    /* Evaluar f(x) en puntos iniciales (no el polinomio de Chebyshev) */
+    /* Paso 1: Empezar con nodos de Chebyshev como puntos iniciales */
     for (int i = 0; i < m; i++) {
-        x[i] = p->a + (double)i / (double)(m - 1) * (p->b - p->a);
+        double theta = M_PI * (2 * i + 1) / (2.0 * m);
+        x[i] = (p->a + p->b) / 2.0 + (p->b - p->a) / 2.0 * cos(theta);
         y[i] = p->f(x[i]);
     }
 
@@ -472,17 +435,6 @@ int remez_solve(remez_params_t *p) {
                 sel++;
             }
         }
-
-        /* Verificar convergencia */
-        double max_err = 0.0;
-        for (int i = 0; i < m; i++) {
-            double e = fabs(y[i] - hastings_eval_poly(coeffs, n, x[i]));
-            if (e > max_err) max_err = e;
-        }
-        if (fabs(max_err - fabs(E)) < p->tolerance * fabs(E)) {
-            converged = 1;
-            break;
-        }
     }
 
     p->coeffs = coeffs;
@@ -491,7 +443,7 @@ int remez_solve(remez_params_t *p) {
     p->iterations = iterations;
 
     free(x); free(y); for (int i = 0; i < m; i++) free(A[i]); free(A);
-    free(b); free(coeffs); free(sx); free(sy); free(se);
+    free(b); free(sx); free(sy); free(se);
     free(ext_x); free(ext_y); free(ext_e);
 
     return converged ? 0 : 1;

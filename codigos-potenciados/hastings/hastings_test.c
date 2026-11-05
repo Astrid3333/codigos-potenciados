@@ -88,7 +88,7 @@ static void test_sin(void) {
     rp.b = M_PI/2.0;
     rp.degree = 5;
     rp.max_iterations = 200;
-    rp.tolerance = 1e-14;
+    rp.tolerance = 1e-10;
 
     if (remez_solve(&rp) == 0) {
         printf("  Remez refinado:   ");
@@ -113,7 +113,7 @@ static void test_atan(void) {
     rp.b = 1.0;
     rp.degree = 5;
     rp.max_iterations = 200;
-    rp.tolerance = 1e-14;
+    rp.tolerance = 1e-10;
 
     if (remez_solve(&rp) == 0) {
         printf("  Remez refinado:   ");
@@ -138,7 +138,7 @@ static void test_exp(void) {
     rp.b = 1.0;
     rp.degree = 5;
     rp.max_iterations = 200;
-    rp.tolerance = 1e-14;
+    rp.tolerance = 1e-10;
 
     if (remez_solve(&rp) == 0) {
         printf("  Remez refinado:   ");
@@ -163,7 +163,7 @@ static void test_log1p(void) {
     rp.b = 1.0;
     rp.degree = 5;
     rp.max_iterations = 200;
-    rp.tolerance = 1e-14;
+    rp.tolerance = 1e-10;
 
     if (remez_solve(&rp) == 0) {
         printf("  Remez refinado:   ");

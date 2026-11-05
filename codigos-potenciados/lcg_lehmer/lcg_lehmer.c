@@ -107,7 +107,11 @@ lcg_spectral_result_t lcg_spectral_analyze(uint64_t a, uint64_t c, uint64_t m,
     /* Búsqueda del vector de normales más corto */
     double best_norm = INFINITY;
     int best_count = 0;
-    int h_range = 100; /* rango de búsqueda */
+    int h_range = 1000; /* rango de búsqueda de vectores h.
+     * NOTA: Para m grande (ej. 2^31), el vector más corto puede tener
+     * componentes > h_range. Una búsqueda completa requiere reducción
+     * de retículo (LLL/Gauss), que no está implementada. Los scores
+     * son por tanto una cota inferior de la calidad real. */
 
     if (dim == 2) {
         /* h1 + h2*a ≡ 0 (mod m) */
