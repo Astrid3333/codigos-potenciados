@@ -78,7 +78,7 @@ char detect_dtmf_in_window(const float *samples) {
         if (col_mag[i] > col_mag[col_idx]) col_idx = i;
     }
 
-    return goertzel_detect_dtmf(row_mag, col_mag, row_idx, col_idx, 3.0f);
+    return goertzel_detect_dtmf(row_mag, col_mag, row_idx, col_idx, 4.0f);
 }
 
 #if USE_MICROPHONE
