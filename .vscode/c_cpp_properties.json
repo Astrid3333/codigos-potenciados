@@ -1,0 +1,28 @@
+{
+    "configurations": [
+        {
+            "name": "codigos-potenciados",
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c99",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-gcc-x64",
+            "includePath": [
+                "${workspaceFolder}/codigos-potenciados/cordic",
+                "${workspaceFolder}/codigos-potenciados/goertzel",
+                "${workspaceFolder}/codigos-potenciados/goertzel/src",
+                "${workspaceFolder}/codigos-potenciados/hastings",
+                "${workspaceFolder}/codigos-potenciados/hybrid_prng",
+                "${workspaceFolder}/codigos-potenciados/lcg_lehmer",
+                "${workspaceFolder}/codigos-potenciados/msws64",
+                "${workspaceFolder}/codigos-potenciados/matematica_ancestral"
+            ],
+            "defines": [],
+            "compilerArgs": [
+                "-Wall",
+                "-Wextra",
+                "-Wpedantic"
+            ]
+        }
+    ],
+    "version": 4
+}

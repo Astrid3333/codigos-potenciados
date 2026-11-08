@@ -11,3 +11,10 @@ randu_plus_bin
 goertzel_bench
 sine_fixed
 *.o
+/compile_commands.json
+__pycache__/
+*.pyc
+pki/
+codigos-potenciados/*.key
+codigos-potenciados/*.crt
+codigos-potenciados/tls-config.env
