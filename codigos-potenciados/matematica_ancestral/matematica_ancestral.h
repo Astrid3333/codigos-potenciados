@@ -90,6 +90,11 @@ int eliminacion_china(double **A, double *b, double *x, int n);
 
 /* ---------- Utilidades -------------------------------- */
 
+/* Inverso modular de a módulo m (mcd(a, m) debe ser 1).
+ * Devuelve el inverso en [0, m-1], o -1 si a no es invertible.
+ */
+int64_t inverso_modular(int64_t a, int64_t m);
+
 /* Convierte un valor en Q15 (punto fijo) a double */
 double q15_a_double(int32_t q15);
 

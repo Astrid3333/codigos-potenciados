@@ -14,8 +14,6 @@
  */
 
 #include "matematica_ancestral.h"
-#include <stdio.h>
-#include <stdlib.h>
 #include <math.h>
 
 #ifndef M_PI
@@ -82,17 +80,22 @@ int fracciones_egipcias(int numerador, int denominador,
 
     if (numerador <= 0 || denominador <= 0) return 0;
 
-    while (numerador > 0 && count < max_terminos) {
+    /* Los intermedios se mantienen en int64_t: numerador*m puede exceder int
+     * y truncaría silenciosamente el residuo de la fracción. */
+    int64_t num = numerador;
+    int64_t den = denominador;
+
+    while (num > 0 && count < max_terminos) {
         /* Encontrar el menor m tal que 1/m <= numerador/denominador */
         /* Es decir: m = ceil(denominador / numerador) */
-        int64_t m = (denominador + numerador - 1) / numerador;
+        int64_t m = (den + num - 1) / num;
 
         denominadores[count++] = m;
 
         /* Restar 1/m del valor actual */
         /* numerador/denominador - 1/m = (numerador*m - denominador) / (denominador*m) */
-        int64_t nuevo_numerador = numerador * m - denominador;
-        int64_t nuevo_denominador = denominador * m;
+        int64_t nuevo_numerador = num * m - den;
+        int64_t nuevo_denominador = den * m;
 
         /* Simplificar por mcd */
         int64_t a = nuevo_numerador;
@@ -102,8 +105,8 @@ int fracciones_egipcias(int numerador, int denominador,
             b = a % b;
             a = temp;
         }
-        numerador = nuevo_numerador / a;
-        denominador = nuevo_denominador / a;
+        num = nuevo_numerador / a;
+        den = nuevo_denominador / a;
     }
 
     return count;
@@ -280,7 +283,7 @@ int sistema_vigesimal_maya(uint64_t valor, int digitos[], int max_digitos) {
     }
 
     while (v > 0 && count < max_digitos) {
-        digitos[count++] = v % 20;
+        digitos[count++] = (int)(v % 20);
         v /= 20;
     }
 

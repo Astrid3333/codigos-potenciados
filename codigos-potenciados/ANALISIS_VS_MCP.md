@@ -57,23 +57,37 @@ python3 codigos-potenciados/tools/gen_compile_commands.py
 
 ## 4. Diagnósticos obtenidos por MCP
 
-`get_diagnostics` (VS Code → C/C++) sobre los 25 archivos: **8 hints, 0 errores, 0 warnings**.
+`get_diagnostics` (VS Code → C/C++) sobre los 25 archivos, **estado inicial**:
+**8 hints, 0 errores, 0 warnings**.
 
 | Archivo | Línea | Include señalado | Verificación empírica |
 |---------|-------|------------------|-----------------------|
-| `cordic/cordic.c` | 11 | `<math.h>` | **Removible** — compila igual sin él |
-| `lcg_lehmer/lcg_lehmer.c` | 16 | `"lcg_lehmer.h"` | **Falso positivo** —header requerido (declara `lcg_spectral_result_t`, `lcg_spectral_analyze`, `lcg_period_test`, `lcg_plane_count_3d`) |
+| `cordic/cordic.c` | 11 | `<math.h>` | **Falso positivo** — `cordic.c` usa `ldexp` (línea 62); sin `<math.h>` falla con *implicit declaration*. cpptools lo considera "no usado" porque trata `ldexp` como builtin |
+| `lcg_lehmer/lcg_lehmer.c` | 16 | `"lcg_lehmer.h"` | **Falso positivo** — header requerido (declara `lcg_spectral_result_t`, `lcg_spectral_analyze`, `lcg_period_test`, `lcg_plane_count_3d`) |
 | `lcg_lehmer/lcg_lehmer.c` | 17 | `<stdio.h>` | **Removible** — no hay `printf`/`puts` |
 | `lcg_lehmer/lcg_lehmer.c` | 18 | `<stdlib.h>` | **Removible** — no hay `malloc`/`rand`/`abs` |
-| `msws64/msws64.c` | 16 | `<stdint.h>` | Compila sin él (llega transitivo por `msws64.h`), pero **recomendable mantener** (IWYU: el TU usa `uint64_t` 12 veces) |
+| `msws64/msws64.c` | 16 | `<stdint.h>` | Compila sin él (llega transitivo por `msws64.h`), pero **se mantiene** (IWYU: el TU usa `uint64_t` 12 veces) |
 | `msws64/msws64.c` | 17 | `<string.h>` | **Removible** — no hay `memcpy`/`strlen` |
 | `matematica_ancestral/matematica_ancestral.c` | 16 | `"matematica_ancestral.h"` | **Falso positivo** — header requerido (declara `fracciones_egipcias`, `sistema_vigesimal_maya`) |
 | `matematica_ancestral/matematica_ancestral.c` | 17 | `<stdio.h>` | **Removible** — no hay `printf` |
 
 Método de verificación: se eliminó cada include en una copia temporal y se recompiló con
-`gcc -std=c99 -Wall -Wextra -fsyntax-only`. Los dos headers "propios" fallan al
-compilarlos sin ellos (33 y 17 mensajes respectivamente), lo que confirma que los hints
-son artefactos del heurístico de cpptools.
+`gcc -std=c99 -Wall -Wextra -Werror=implicit-function-declaration -fsyntax-only`.
+
+> **Corrección de un error previo.** Una primera versión de esta tabla clasificó
+> `<math.h>` en `cordic.c` como removible. El test usado entonces no eliminaba las
+> líneas con `<>` (el patrón de borrado sólo cubría la forma `"..."`), de modo que el
+> archivo se compilaba *con* el include presente y el resultado era engañoso. Repetido
+> con un borrado correcto, `<math.h>` resulta **necesario** por `ldexp`.
+
+### 4.1 Estado tras las correcciones
+
+| Métrica | Antes | Después |
+|---------|-------|---------|
+| Hints por MCP | 8 | **2** (ambos falsos positivos / intencionales: `cordic.c` `math.h`, `msws64.c` `stdint.h`) |
+| Avisos de gcc (flags estrictos) | 28 | **0** |
+| `-Werror` con flags estrictos | falla | **pasa en los 15 archivos .c** |
+| Pruebas | 7/7 módulos | 7/7 módulos (sin regresiones) |
 
 ## 5. Hallazgos de gcc (no visibles en IntelliSense)
 
@@ -114,11 +128,12 @@ header); las otras dos no aparecen en ningún header.
 
 `cordic/cordic.c:58` (inicialización redundante) ·
 `goertzel/goertzel.c:82` (asignación duplicada) · `goertzel/goertzel_test.c:44` (array `const`) ·
-`msws64/msws64.c:104` (variable asignada y no usada) ·
-`matematica_ancestral/matematica_ancestral.c:193` (scope reducible) ·
+`msws64/msws64.c:103` (variable asignada y no usada) ·
+`matematica_ancestral/matematica_ancestral.c:196` (scope reducible) ·
 `matematica_ancestral/matematica_ancestral_test.c:121,241,263` (arrays `const`).
 
-Ningún hallazgo de severidad `error` ni `warning` en cppcheck.
+Ningún hallazgo de severidad `error` ni `warning` en cppcheck (sólo `style`), y estos
+8 avisos siguen presentes tras las correcciones: son cosméticos.
 
 ## 6. Estado funcional verificado
 
@@ -142,11 +157,24 @@ Todos los módulos compilan y sus pruebas pasan:
 - `get_symbol_lsp_info` y `get_references` funcionan solo con símbolos que el language
   server C pueda resolver; no se usaron como criterio de calidad.
 
-## 8. Cambios recomendados (no aplicados)
+## 8. Correcciones aplicadas
 
-1. Quitar 5 includes realmente removibles (`cordic.c` `math.h`; `lcg_lehmer.c` `stdio.h`
-   y `stdlib.h`; `msws64.c` `string.h`; `matematica_ancestral.c` `stdio.h`).
-   Mantener `msws64.c` `<stdint.h>`.
-2. Declarar `cordic_radians_to_fixed16`, `cordic_fixed16_to_radians`, `msws64_pure_next`
-   e `inverso_modular` en sus headers.
-3. Corregir las conversiones con signo/truncamiento y el `cast` que descarta `const`.
+Todas verificadas con los flags estrictos + `-Werror` y con la suite de pruebas.
+
+| # | Corrección | Archivos |
+|---|------------|---------|
+| 1 | Includes no usados eliminados | `lcg_lehmer.c` (`stdio.h`, `stdlib.h`, `string.h`), `msws64.c` (`string.h`), `matematica_ancestral.c` (`stdio.h`, `stdlib.h`), `cordic.c` (`stdlib.h`) |
+| 2 | Prototipos declarados | `cordic.h` (`cordic_radians_to_fixed16`, `cordic_fixed16_to_radians`), `lcg_lehmer.h` (`msws64_pure_next`), `matematica_ancestral.h` (`inverso_modular`) |
+| 3 | Signo y truncamientos corregidos | `goertzel_test.c` (4), `hastings.c` (12 `malloc`/`calloc` con cast a `size_t`), `msws64.c` (2), `hybrid_prng.h` (4), `lcg_lehmer.c` (3 `__uint128_t`→`uint64_t`), `matematica_ancestral.c` (2) |
+| 4 | `const` preservado | `hastings.c` — el campo `hastings_poly_t.coeffs` ya era `const double *`; se eliminó el cast que descartaba `const` |
+| 5 | Truncamiento latente eliminado | `matematica_ancestral.c` — `fracciones_egipcias` trabaja con `int64_t` internos; el `int` intermediate truncaba el residuo silenciosamente |
+| 6 | Extensión de 128 bits con `-Wpedantic` | `lcg_lehmer.c` — `__extension__ typedef` para `__int128`/`unsigned __int128` (GCC), silenciando el aviso ISO C sin cambiar la aritmética modular |
+| 7 | Constantes K de Q15 corregidas | `cordic.h` (`CORDIC_FIXED16_K`: 54033 → 53961), `cordic_arduino.h` (`CORDIC_K_Q15`: 53960 → 53961). Valor exacto: K·32768 = 53961.04 tanto para N=12 como para N=16; `cordic.h` además no usaba la constante en ningún sitio |
+
+### Pendiente (no aplicado)
+
+- Los 8 avisos de estilo de cppcheck (sección 5.5) son cosméticos.
+- `msws64.c` conserva `<stdint.h>` aunque cpptools lo marque: el TU usa `uint64_t`
+  directamente y la norma exige incluir el header del tipo usado.
+- `cordic.c` conserva `<math.h>` aunque cpptools lo marque: `ldexp` lo exige.
+- Los sketches `.ino` siguen sin cobertura de diagnósticos (ver sección 7).

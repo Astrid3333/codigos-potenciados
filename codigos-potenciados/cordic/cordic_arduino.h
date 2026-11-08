@@ -37,13 +37,13 @@
 #endif
 
 /* Ganancia CORDIC K = prod_{i=0}^{N-1} sqrt(1 + 2^(-2i))
- * Para N=12: K ≈ 1.6467602581210654
- * En Q15: K * 32768 ≈ 53960 (valor redondeado).
+ * Para N=12: K = 1.6467601926846949
+ * En Q15: K * 32768 = 53961.0380 -> 53961 (valor redondeado).
  *
- * Nota: el valor exacto depende de N; para N=12 es 53960, para N=16 es
- * 53962. La diferencia es insignificante en Q15.
+ * Nota: el valor redondeado es 53961 tanto para N=12 como para N=16
+ * (K*32768 = 53961.0401); la diferencia real es despreciable en Q15.
  */
-#define CORDIC_K_Q15 53960L
+#define CORDIC_K_Q15 53961L
 
 typedef int32_t cordic_fixed16_t;   /* Q15: 1 bit signo, 15 bits fraccion */
 #define CORDIC_FIXED16_ONE 32768L   /* 1.0 en Q15 */

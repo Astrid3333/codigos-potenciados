@@ -14,10 +14,13 @@
  */
 
 #include "lcg_lehmer.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <math.h>
+
+/* Tipos de 128 bits (extensión GCC) para la aritmética modular exacta:
+ * (uint64 * uint64) puede exceder 64 bits y desbordaría sin ellos.
+ * __extension__ silencia el aviso de -Wpedantic por no ser ISO C. */
+__extension__ typedef __int128 lcg_int128_t;
+__extension__ typedef unsigned __int128 lcg_uint128_t;
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -62,8 +65,8 @@ static uint64_t mod_pow(uint64_t a, uint64_t k, uint64_t m) {
     uint64_t result = 1 % m;
     a = a % m;
     while (k > 0) {
-        if (k & 1) result = (__uint128_t)result * a % m;
-        a = (__uint128_t)a * a % m;
+        if (k & 1) result = (uint64_t)((lcg_uint128_t)result * a % m);
+        a = (uint64_t)((lcg_uint128_t)a * a % m);
         k >>= 1;
     }
     return result;
@@ -101,7 +104,7 @@ lcg_spectral_result_t lcg_spectral_analyze(uint64_t a, uint64_t c, uint64_t m,
     uint64_t powers[8];
     powers[0] = 1 % m;
     for (uint32_t i = 1; i < dim; i++) {
-        powers[i] = (__uint128_t)powers[i-1] * a % m;
+        powers[i] = (uint64_t)((lcg_uint128_t)powers[i-1] * a % m);
     }
 
     /* Búsqueda del vector de normales más corto */
@@ -118,7 +121,7 @@ lcg_spectral_result_t lcg_spectral_analyze(uint64_t a, uint64_t c, uint64_t m,
         for (int h2 = -h_range; h2 <= h_range; h2++) {
             if (h2 == 0) continue;
             /* h1 = -h2*a mod m */
-            __int128 val = ((__int128)(-h2) * (__int128)powers[1]) % (__int128)m;
+            lcg_int128_t val = ((lcg_int128_t)(-h2) * (lcg_int128_t)powers[1]) % (lcg_int128_t)m;
             if (val < 0) val += m;
             int64_t h1 = (int64_t)val;
             if (h1 > (int64_t)m / 2) h1 -= (int64_t)m;
@@ -137,9 +140,9 @@ lcg_spectral_result_t lcg_spectral_analyze(uint64_t a, uint64_t c, uint64_t m,
             if (h3 == 0) continue;
             for (int h2 = -h_range; h2 <= h_range; h2++) {
                 if (h2 == 0) continue;
-                __int128 val = ((__int128)h2 * (__int128)powers[1] +
-                                (__int128)h3 * (__int128)a2) % (__int128)m;
-                val = (-val) % (__int128)m;
+                lcg_int128_t val = ((lcg_int128_t)h2 * (lcg_int128_t)powers[1] +
+                                (lcg_int128_t)h3 * (lcg_int128_t)a2) % (lcg_int128_t)m;
+                val = (-val) % (lcg_int128_t)m;
                 if (val < 0) val += m;
                 int64_t h1 = (int64_t)val;
                 if (h1 > (int64_t)m / 2) h1 -= (int64_t)m;
@@ -262,16 +265,16 @@ int lcg_plane_count_3d(uint64_t a, uint64_t c, uint64_t m) {
             for (int h1 = -max_h; h1 <= max_h; h1++) {
                 if (h1 == 0 && h2 == 0 && h3 == 0) continue;
                 /* Verificar h1 + h2*a + h3*a^2 ≡ 0 (mod m) */
-                __int128 val = ((__int128)h1 +
-                                (__int128)h2 * (__int128)a +
-                                (__int128)h3 * (__int128)a2) % (__int128)m;
+                lcg_int128_t val = ((lcg_int128_t)h1 +
+                                (lcg_int128_t)h2 * (lcg_int128_t)a +
+                                (lcg_int128_t)h3 * (lcg_int128_t)a2) % (lcg_int128_t)m;
                 if (val < 0) val += m;
                 if (val != 0) continue;
 
                 /* Verificar término constante: h2*c + h3*a*c + h3*c ≡ 0 */
-                __int128 val2 = ((__int128)h2 * (__int128)c +
-                                 (__int128)h3 * (__int128)a * (__int128)c +
-                                 (__int128)h3 * (__int128)c) % (__int128)m;
+                lcg_int128_t val2 = ((lcg_int128_t)h2 * (lcg_int128_t)c +
+                                 (lcg_int128_t)h3 * (lcg_int128_t)a * (lcg_int128_t)c +
+                                 (lcg_int128_t)h3 * (lcg_int128_t)c) % (lcg_int128_t)m;
                 if (val2 < 0) val2 += m;
                 if (val2 != 0) continue;
 

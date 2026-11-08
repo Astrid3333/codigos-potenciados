@@ -14,7 +14,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <string.h>
 #include <math.h>
 #include "msws64.h"
 
@@ -66,7 +65,11 @@ static int count_zero_sink_4(void) {
 
 /* ---------- chi cuadrado de uniformidad ---------- */
 static double chi_square(uint64_t *samples, int n_samples, int nbins, uint64_t modulus) {
-    int *counts = calloc(nbins, sizeof(int));
+    int *counts = calloc((size_t)nbins, sizeof(int));
+    if (!counts) {
+        fprintf(stderr, "Error: no se pudo asignar memoria para counts\n");
+        return -1.0;
+    }
     double expected = (double)n_samples / (double)nbins;
     double chi2 = 0.0;
     for (int i = 0; i < n_samples; ++i) {
@@ -115,7 +118,11 @@ int main(void) {
     /* Chi cuadrado para msws64 */
     const int n_samples = 100000;
     const int nbins = 10;
-    uint64_t *samples = malloc(n_samples * sizeof(uint64_t));
+    uint64_t *samples = malloc((size_t)n_samples * sizeof(uint64_t));
+    if (!samples) {
+        fprintf(stderr, "Error: no se pudo asignar memoria para samples\n");
+        return 1;
+    }
     msws64_seed(&rng, 1234ULL);
     for (int i = 0; i < n_samples; ++i) {
         samples[i] = msws64_next(&rng);

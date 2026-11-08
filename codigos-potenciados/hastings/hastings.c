@@ -271,7 +271,7 @@ const hastings_poly_t *hastings_get_poly(const char *name) {
     static int initialized = 0;
     if (!initialized) {
         for (int i = 0; i < 4; i++) {
-            polys[i].coeffs = (double *)poly_coeffs[i];
+            polys[i].coeffs = poly_coeffs[i];
             polys[i].n = poly_degrees[i];
             polys[i].range_min = poly_ranges[i][0];
             polys[i].range_max = poly_ranges[i][1];
@@ -346,17 +346,17 @@ int remez_solve(remez_params_t *p) {
     int m = n + 1;               /* número de puntos de alternancia */
     int ns = 200;                /* puntos de muestreo para extrema */
 
-    double *x  = malloc(m * sizeof(double));
-    double *y  = malloc(m * sizeof(double));
-    double **A = malloc(m * sizeof(double *));
-    double *b  = malloc(m * sizeof(double));
-    double *coeffs = malloc(n * sizeof(double));
-    double *ext_x = malloc((ns + 2) * sizeof(double));
-    double *ext_y = malloc((ns + 2) * sizeof(double));
-    double *ext_e = malloc((ns + 2) * sizeof(double));
-    double *sx = malloc(ns * sizeof(double));
-    double *sy = malloc(ns * sizeof(double));
-    double *se = malloc(ns * sizeof(double));
+    double *x  = malloc((size_t)m * sizeof(double));
+    double *y  = malloc((size_t)m * sizeof(double));
+    double **A = malloc((size_t)m * sizeof(double *));
+    double *b  = malloc((size_t)m * sizeof(double));
+    double *coeffs = malloc((size_t)n * sizeof(double));
+    double *ext_x = malloc((size_t)(ns + 2) * sizeof(double));
+    double *ext_y = malloc((size_t)(ns + 2) * sizeof(double));
+    double *ext_e = malloc((size_t)(ns + 2) * sizeof(double));
+    double *sx = malloc((size_t)ns * sizeof(double));
+    double *sy = malloc((size_t)ns * sizeof(double));
+    double *se = malloc((size_t)ns * sizeof(double));
 
     if (!x || !y || !A || !b || !coeffs || !ext_x || !ext_y || !ext_e ||
         !sx || !sy || !se) {
@@ -366,7 +366,7 @@ int remez_solve(remez_params_t *p) {
         return -1;
     }
     for (int i = 0; i < m; i++) {
-        A[i] = malloc(m * sizeof(double));
+        A[i] = malloc((size_t)m * sizeof(double));
         if (!A[i]) {
             for (int j = 0; j < i; j++) free(A[j]);
             free(A); free(x); free(y); free(b); free(coeffs);

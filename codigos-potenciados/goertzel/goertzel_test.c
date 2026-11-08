@@ -25,9 +25,11 @@
 
 int main(void) {
     const int N = 1 << 17;  /* 131072 muestras */
+    /* srand(1) intencional: pruebas deterministas y reproducibles.
+     * No se usa para claves criptográficas ni nonces. */
     srand(1);
 
-    double *x = malloc(N * sizeof(double));
+    double *x = malloc((size_t)N * sizeof(double));
     if (!x) {
         fprintf(stderr, "Error: no se pudo asignar memoria\n");
         return 1;
@@ -58,9 +60,9 @@ int main(void) {
         int bin = bins[i];
         double w = 2.0 * M_PI * bin / N;
 
-        goertzel_cpx_t cK = goertzel_K(x, N, w);
-        goertzel_cpx_t cA = goertzel_alpha(x, N, w);
-        goertzel_cpx_t cH = goertzel_hybrid(x, N, w);
+        goertzel_cpx_t cK = goertzel_K(x, (size_t)N, w);
+        goertzel_cpx_t cA = goertzel_alpha(x, (size_t)N, w);
+        goertzel_cpx_t cH = goertzel_hybrid(x, (size_t)N, w);
 
         printf("%7d %12.6f %14.6f %14.6f %14.6f\n",
                bin, w,

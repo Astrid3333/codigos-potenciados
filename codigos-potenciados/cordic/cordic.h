@@ -56,7 +56,7 @@ typedef struct {
 typedef int32_t cordic_fixed16_t;
 
 #define CORDIC_FIXED16_ONE 32768  /* 1.0 en Q15 */
-#define CORDIC_FIXED16_K   54033  /* K * 32768 ≈ 54033 */
+#define CORDIC_FIXED16_K   53961  /* K * 32768 ≈ 53961 (N=12 y N=16) */
 
 /* Resultado en punto fijo Q15 */
 typedef struct {
@@ -99,6 +99,15 @@ static inline void cordic_sincos_fixed16_normalized(
     *cos_out = r.x;  /* ya está en Q15 con K incluido */
     *sin_out = r.y;  /* ya está en Q15 con K incluido */
 }
+
+/* ---------- Utilidad: conversión de ángulo ---------------- */
+
+/* Convierte radianes a Q15 (theta_fixed = radians / pi * 32768),
+ * saturando al rango representable [-32768, 32767]. */
+cordic_fixed16_t cordic_radians_to_fixed16(double radians);
+
+/* Convierte de vuelta a radianes: radians = theta_fixed / 32768 * pi. */
+double cordic_fixed16_to_radians(cordic_fixed16_t fixed);
 
 /* ---------- Tabla de arctan (para referencia / depuración) ---------- */
 

@@ -38,10 +38,10 @@ static inline void hybrid_prng_seed(hybrid_prng_t *rng, uint64_t seed) {
 /* Middle-square de von Neumann: 4 dígitos del medio del cuadrado */
 static inline uint16_t hybrid_ms_next(uint16_t x) {
     uint32_t sq = (uint32_t)x * (uint32_t)x;
-    uint16_t d1 = (sq / 1000) % 10;
-    uint16_t d2 = (sq / 100)  % 10;
-    uint16_t d3 = (sq / 10)   % 10;
-    uint16_t d4 =  sq         % 10;
+    uint16_t d1 = (uint16_t)((sq / 1000) % 10);
+    uint16_t d2 = (uint16_t)((sq / 100)  % 10);
+    uint16_t d3 = (uint16_t)((sq / 10)   % 10);
+    uint16_t d4 = (uint16_t)( sq         % 10);
     return (uint16_t)(d1 * 1000 + d2 * 100 + d3 * 10 + d4);
 }
 
