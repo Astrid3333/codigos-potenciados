@@ -8,6 +8,15 @@
 
 ## 0. Resumen ejecutivo
 
+**Estado al cierre del ciclo 5 (post-corrección, re-verificado el 2026-11-09 14:26 con MCP Inspector 2.13.0):**
+
+| Bloque | Servidores | Responden | Tools declaradas | Caídos | Antes → Después |
+|---|---|---|---|---|---|
+| `claude_desktop_config.template.json` | 24 | **21** | **250** | 3 (`gdal`, `openbb-mcp`, `qgis` — red/`uvx`) | 17/28 · 196 tools → **21/24 · 250 tools** |
+| `~/.config/Claude/claude_desktop_config.json` (desplegada) | 22 | **21** | **734** | 1 (`openbb-mcp` — red/`uvx`) | 9/12 · 639 tools → **21/22 · 734 tools** |
+
+**Diagnóstico original** (antes de corregir; el detalle está en las secciones 1–6):
+
 | Bloque | Servidores | Responden | Tools declaradas | Servidores caídos |
 |---|---|---|---|---|
 | `claude_desktop_config.template.json` (28) | 28 | **17** | **196** | 11 |
@@ -19,6 +28,8 @@ Tres capas de problemas, todas con evidencia ejecutada (no solo lectura de códi
 2. **19 de los 28 servidores del template no están en la config desplegada** — incluidos 11 servidores propios del repo (gazebo×3, brian2, copasi, neuron, sbtcvm, analisis-suelos, bolsa-mcp, solver…).
 3. **Dos venvs con scipy roto** (`microbio-env`, `physics-env`): sus `.so` no son ELF → ambos servidores MCP mueren al arrancar, y aparecen en **ambas** configs.
 4. **Dos bugs de código en el WIP sin commitear**: `verificar_mcp.py` quedó sin `import os` (→ `NameError` al arrancar) y `octave_mcp.py` responde `"id": null` en los errores (→ el cliente cuelga 60 s en vez de recibir el error).
+
+> Las cuatro capas están **corregidas y verificadas**: ver §7 (cierre del ciclo). Las secciones 1–6 conservan el diagnóstico original tal como se midió, con dos correcciones señaladas explícitamente (A3 no era de severidad *alta*; A4 no era riesgo de timeout).
 
 ---
 
@@ -119,7 +130,7 @@ En `HEAD` el archivo importa `os` (línea 16); en el **working tree** ese `impor
 
 El manejador de excepciones responde `"id": None` en lugar de propagar el `id` de la petición. El cliente no puede correlacionar la respuesta → en vez de recibir el error cuelga hasta el timeout (medido: 60 s con MCP Inspector) y el usuario ve "Connection closed" genérico. Es el **único** archivo de `servidores-propios/` con ese patrón (grep `"id": None`), por lo que el bug es local y de corrección puntual.
 
-**A3 — alto · `middle_square_weyl_tool.py:67` y `ancestral_octave_tool.py:533` · import frágil y ambiguo**
+**A3 — medio (no *alto*, ver nota) · `middle_square_weyl_tool.py:67` y `ancestral_octave_tool.py:533` · import frágil y ambiguo**
 
 ```python
 from server import run_octave
@@ -130,9 +141,13 @@ from server import run_octave
 - Import standalone del módulo tool → `ModuleNotFoundError: No module named 'server'`.
 - Hay **8 copias** de `octave_mcp.py` con `run_octave` en el sistema (`/home/astrid/octave-mcp/`, `/home/astrid/github/octave-mcp/`, `/home/astrid/github/mcp-ecosystem-chiloe/`, `Open-Science/notebooks/…`, …) → la resolución en runtime depende del `sys.path`, no del repo.
 
+> **Corrección del diagnóstico inicial:** la severidad *alta* era incorrecta. En `HEAD`, `octave_mcp.py` ya inserta `sys.modules.setdefault("server", sys.modules["__main__"])`, de modo que el caso *in-server* (que es el que usa Claude Desktop) **funcionaba**; lo que fallaba era el **uso standalone** del módulo tool (import directo) y la resolución ambigua entre 8 copias. El arreglo (§7) lo resuelve por ambos lados.
+
 **A4 — medio · `middle_square_weyl_tool.py` · `modulus` sin validar**
 
-Con `modulus=1000` el script Octave desborda: `seen(1025): out of bound 1000 (dimensions are 1x1000)`, porque `ms_next` devuelve valores hasta 9999. El default (10000) no desborda, pero un `modulus` chico produce un error críptico de Octave en vez de una validación en el borde. Adicionalmente, con `modulus=1000` la corrida llegó a **30.7 s** y el `timeout` interno de `run_octave` es 30 s → con los defaults (modulus 10000) la herramienta queda al borde del timeout.
+Con `modulus=1000` el script Octave desborda: `seen(1025): out of bound 1000 (dimensions are 1x1000)`, porque `ms_next` devuelve valores hasta 9999. El default (10000) no desborda, pero un `modulus` chico produce un error críptico de Octave en vez de una validación en el borde.
+
+> **Corrección del diagnóstico inicial:** la preocupación "al borde del timeout" era infundada. Medido: con los defaults la corrida completa tarda **17.4 s** (timeout interno 30 s) y `max_iter` es irrelevante porque los bucles cortan al primer ciclo (periodos 90 y 111). El riesgo real era solo el `modulus` chico → validado en el borde (§7).
 
 **A5 — ya corregido en el WIP · `octave_mcp.py` · binario de Octave por nombre**
 
@@ -227,3 +242,48 @@ Incluye los 11 propios del repo. El template describe un ecosistema que el usuar
 - Los servidores `uvx` (gdal, openbb, qgis) no se pudieron distinguir entre "caído" y "sin red" en esta corrida.
 - No se ejecutó el ciclo completo de `verificar_mcp.py` (A1 lo impide tal como está el working tree).
 - La clasificación "caído" es de esta máquina y esta fecha; `n_tools` refleja el estado del `tools/list` de hoy.
+
+---
+
+## 7. Cierre del ciclo: correcciones aplicadas y verificadas
+
+Todas las correcciones se midieron con **MCP Inspector 2.13.0 real** (`tools/list` y `tools/call`), nunca por lectura de código.
+
+### 7.1 Correcciones de código (repo canónico)
+
+| Ítem | Corrección | Evidencia |
+|---|---|---|
+| **A1** | `verificar_mcp.py`: repuesto `import os` (el WIP lo había borrado y el uso seguía) | `py_compile` OK; el archivo vuelve al estado de `HEAD` en ese punto → el fix **no genera diff** |
+| **A2** | `octave_mcp.py`: `req_id = None` antes del `try`; el `except` responde `"id": req_id` | `tools/call middle_square_weyl --tool-arg modulus=1000` → error devuelto en **1.0 s** con `id` correlacionable (antes: cuelgue 60 s) |
+| **A3** | Nuevo `servidores-propios/octave_runner.py` (`_octave_bin()` + `run_octave(code, timeout=30)`); `octave_mcp.py`, `middle_square_weyl_tool.py` y `ancestral_octave_tool.py` importan desde ahí (fin del shim `"server"` y del acoplamiento a 8 copias) | import **standalone** del módulo tool OK; `octave_mcp.py` expone **13 tools**; `tools/list` del server desplegado = 13 |
+| **A4** | `middle_square_weyl_tool.py`: validaciones en el borde (`digits >= 1`, `digits` par, `modulus >= 10**digits`, `max_iter >= 1`) + `digits` **funcional** (antes ignorado) | `digits=3` → error claro; `digits=2, modulus=100` → 5 ciclos / 0.62 / weyl 6 / tcr 7; defaults → **baseline reproducido exactamente** (ciclos 8, `zero_sink` 0.1818, `weyl_period` 90, `tcr_period` 111, `tcr_modulus_M` 99400900.0, `variant_spread` 0.189189; `MATCH BASELINE` = True) |
+
+Higiene asociada: `ruff` sobre los 5 archivos tocados → **"All checks passed!"** (13 → 0: F821 `os`, F401 `re`/`shlex`, E401, E741 `l`→`line`); `py_compile` OK en los 5.
+
+### 7.2 Correcciones de entorno y despliegue
+
+| Ítem | Corrección | Evidencia |
+|---|---|---|
+| **B2** | `pip install --force-reinstall --only-binary=:all: scipy` en `/home/astrid/microbio-env` y `/home/astrid/physics-env` (los `.so` no eran ELF: magic `00 10 dd fc`) | scipy **1.18.1** importa en ambos; `microbio-mcp` = 6 tools y `physics-mcp` = 8 tools → **ambos vuelven a responder** en template y desplegada |
+| **B1/B4** | Template: `octave` y los 9 servidores propios apuntando a la ruta **canónica** (`/home/astrid/Documents/OpenScience/projects/githu/mcp-ecosystem-chiloe/servidores-propios/…`), no a la copia obsoleta | `octave` = **13 tools** en el template (la copia obsoleta exponía 1) |
+| **B3** | Config desplegada: **backup** `claude_desktop_config.json.bak-20261109-142058` + se agregan 10 entradas (9 servidores propios + `octave-chiloe`), **sin tocar** las 12 existentes | las 10 verificadas una por una: 13 + 2 + 1 + 10 + 9 + 9 + 8 + 16 + 9 + 4 = **81 tools**; desplegada: 12 → 22 servidores, 639 → **734 tools** |
+| **B5** | Podadas 4 entradas sin instalación (`mcp-registry`, `inkscape`, `krita`, `materials-project`) + **eliminadas 2 claves duplicadas** (`analisis-suelos`, `bolsa-mcp`: la copia vieja pisaba a la nueva) + rutas `npx` inexistentes reemplazadas por el node real (`/home/astrid/.local/share/pi-node/node-v22.23.2-linux-x64/bin/npx`) | template: 28 → **24** claves, **0 claves duplicadas**, **0 rutas absolutas inexistentes**; `filesystem` = **14 tools** (antes caído) y `firecrawl-mcp` = **26 tools** (antes caído) |
+
+### 7.3 Evidencia final (2026-11-09 14:26)
+
+**Template (24 servidores): 21/21 respondiendo salvo 3 por red** — `gdal`, `openbb-mcp`, `qgis` (todos `uvx` que resuelven por red; no son bugs del repo).
+
+| Caído | Tools | s | Causa |
+|---|---|---|---|
+| gdal | 0 | 17.4 | `uvx --from gdal-mcp` → timeout de red |
+| openbb-mcp | 0 | 17.6 | `uvx --from openbb-mcp-server` → timeout de red |
+| qgis | 0 | 1.7 | `uvx --from git+https://github.com/nkarasiak/qgis-mcp` → timeout de red |
+
+**Desplegada (22 servidores): 21/22 responden** — único caído: `openbb-mcp` (misma causa de red).
+
+### 7.4 Qué queda pendiente (decisiones del usuario, no bloquean el ciclo)
+
+- **`octave` desplegado sigue siendo el server de otro repo** (3 tools genéricas: `list_tools`/`get_tool_schema`/`call_tool`, `/home/astrid/octave-mcp/server.py`). Se **conservó** a propósito y el server del repo se agregó aparte como `octave-chiloe` (13 tools). Si el usuario quiere reemplazar el viejo, es borrar una entrada.
+- **Los 3 servidores `uvx`** no se pueden verificar offline: requieren red o un install previo.
+- **`bench`, `mcp-blender-full` y `unrealMCP`** existen en la config desplegada y **no** están en el template: el template sigue siendo la fuente de los servidores propios del repo, no un espejo exacto del entorno.
+- El **working tree del repo canónico** conserva WIP del usuario sin commitear (incluido el template y `verificar_mcp.py`): los commits de este ciclo incluyen **solo** los 4 archivos de código propios (`octave_runner.py` nuevo, `octave_mcp.py`, `middle_square_weyl_tool.py`, `ancestral_octave_tool.py`).

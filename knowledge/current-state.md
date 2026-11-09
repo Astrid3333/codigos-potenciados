@@ -1,22 +1,21 @@
 # Current State
 
 - Goal: entregar análisis estáticos de repos vía VS Code MCP + MCP Inspector.
-- Stage: ciclo 5 (`mcp-ecosystem-chiloe`, análisis declarado vs. MCP real) — informe escrito y
-  verificado; ciclo 4 (Ternario) cerrado antes.
-- Current task: `mcp-ecosystem-chiloe` auditado con MCP Inspector real: template 17/28 responden
-  (196 tools), config desplegada 9/12 (639 tools). Informe en
+- Stage: ciclo 5 (`mcp-ecosystem-chiloe`, análisis declarado vs. MCP real) — **cerrado**: fixes
+  de código, entorno y despliegue aplicados y re-verificados; ciclo 4 (Ternario) cerrado antes.
+- Current task: ciclo 5 cerrado. Estado medido post-corrección (2026-11-09 14:26, MCP Inspector
+  2.13.0): template **21/24 responden, 250 tools**; config desplegada **21/22, 734 tools** (antes
+  17/28 · 196 y 9/12 · 639). Informe con §7 de cierre en
   `analysis/mcp-ecosystem-chiloe/ANALISIS_VS_MCP.md`, evidencia en
   `analysis/mcp-ecosystem-chiloe/mcp_inspector_tools.json`, captura reproducible en
-  `analysis/mcp-ecosystem-chiloe/capture_tools.py`. Bugs clave: `verificar_mcp.py:59` sin
-  `import os` (NameError), `octave_mcp.py:210` responde `"id": null`, `from server import
-  run_octave` (3 archivos/copias ambiguas), scipy roto en `microbio-env`/`physics-env`,
-  19 servidores del template ausentes en lo desplegado, template apuntando a una copia obsoleta
-  del repo (7 commits atrás, 1 tool vs 13). Pendiente: aplicar fixes en el repo (con ok del
-  usuario, sin tocar su WIP de 12 archivos).
-- Next action: proponer al usuario las correcciones P0/P1 del informe (1 línea cada una en
-  `verificar_mcp.py` y `octave_mcp.py`, reinstalar scipy en 2 venvs, apuntar el template a la
-  copia canónica) y revisar con el usuario el WIP de GUI del kernel de Ternario (sigue sin
-  commitear en su working tree, intacto).
+  `analysis/mcp-ecosystem-chiloe/capture_tools.py`. Fixes: A1 (`import os` restituido),
+  A2 (`id` correlacionable), A3 (nuevo `octave_runner.py` compartido), A4 (validaciones +
+  `digits` funcional), B2 (scipy 1.18.1 reinstalado en los 2 venvs), B1/B4 (template a la ruta
+  canónica + podas + npx real), B3 (10 servidores agregados a la config desplegada).
+- Next action: con el usuario — decidir si el `octave` viejo del deploy (3 tools) se reemplaza
+  por `octave-chiloe` (13 tools), y si `bench`/`mcp-blender-full`/`unrealMCP` entran al
+  template. Pendiente known: auditar los 12 archivos del WIP del usuario (C3) y los 3
+  servidores `uvx` que requieren red (`gdal`, `openbb-mcp`, `qgis`).
 - Ciclo 4 (cerrado): las 12 correcciones de Ternario están aplicadas y commiteadas en
   `Ternario-ancestral-sensores` (`master` @ `b361241`, fix de código en `544f633`, pusheado).
   Verificado: gcc `-m32 -Wall -Wextra` sobre las 45 TUs del kernel con 0 errores y con las
@@ -29,17 +28,29 @@
 ## Facts_changed
 
 - `mcp-ecosystem-chiloe`: la copia **canónica** es
-  `/home/astrid/Documents/OpenScience/projects/githu/mcp-ecosystem-chiloe` (`480646d`); la copia
-  **obsoleta** `/home/astrid/mcp-ecosystem-chiloe` (`c022adf`, 7 commits atrás) es la que apuntan
-  las rutas del `claude_desktop_config.template.json`. Su `octave_mcp.py` expone **1 tool**
-  frente a **13** de la canónica → desplegar la obsoleta deja al usuario 12 tools sin acceso.
-- Estado real medido con MCP Inspector (2026-11-09): template 17/28 responden con 196 tools;
-  `~/.config/Claude/claude_desktop_config.json` 9/12 con 639 tools. 19 servidores del template
-  no están desplegados (incluidos los 11 propios del repo) y 3 desplegados no están en el
-  template (`bench`, `mcp-blender-full`, `unrealMCP`).
-- `microbio-env` y `physics-env` tienen **scipy inservible**: los `.so` de scipy no son ELF
-  (`invalid ELF header`; magic `00 10 dd fc` / `00 c0 29 ff`) → `microbio-mcp` y `physics-mcp`
-  mueren al arrancar y fallan en ambas configs. Reinstall de scipy en esos 2 venvs.
+  `/home/astrid/Documents/OpenScience/projects/githu/mcp-ecosystem-chiloe` (ahora `982ab0f`,
+  pusheado a `origin/main`); la copia **obsoleta** `/home/astrid/mcp-ecosystem-chiloe`
+  (`c022adf`, 7 commits atrás) expone **1 tool** frente a **13** de la canónica. El template
+  (working tree, con WIP del usuario) **ya apunta a la canónica** → no volver a la obsoleta.
+- Estado real medido con MCP Inspector post-corrección (2026-11-09 14:26): template **21/24**
+  con **250 tools**; `~/.config/Claude/claude_desktop_config.json` **21/22** con **734 tools**.
+  Los 3 que no responden (template) y 1 (desplegada) son `uvx` que necesitan red: `gdal`,
+  `openbb-mcp`, `qgis` — no son bugs del repo.
+- Config desplegada: 12 → **22** servidores (backup `claude_desktop_config.json.bak-20261109-142058`).
+  Se agregaron los 9 servidores propios del repo + `octave-chiloe` (13 tools) apuntando a la
+  ruta canónica; **sin tocar** las 12 entradas previas. El `octave` viejo (3 tools,
+  `/home/astrid/octave-mcp/server.py`) se conservó a propósito.
+- Template: 28 → **24** claves (podadas `mcp-registry`, `inkscape`, `krita`,
+  `materials-project` — binarios inexistentes — y **2 claves duplicadas** `analisis-suelos` y
+  `bolsa-mcp`, cuya versión vieja pisaba a la nueva). Rutas `npx` corregidas al node real
+  (`/home/astrid/.local/share/pi-node/node-v22.23.2-linux-x64/bin/npx`): `filesystem` pasó de
+  caído a 14 tools y `firecrawl-mcp` de caído a 26 tools.
+- `microbio-env` y `physics-env`: scipy **arreglado** (1.18.1, reinstall `--only-binary=:all:`;
+  los `.so` previos no eran ELF, magic `00 10 dd fc`). `microbio-mcp` = 6 tools y
+  `physics-mcp` = 8 tools → ambos vuelven a responder en las dos configs.
+- `octave_mcp.py` ahora importa `run_octave` del nuevo módulo compartido
+  `servidores-propios/octave_runner.py` (`_octave_bin()` con `shutil.which`); se eliminó el
+  shim `sys.modules["server"]` y el import frágil `from server import run_octave`.
 - El `octave` desplegado (`/home/astrid/octave-mcp/server.py`) **solo arranca con su venv**
   (`/home/astrid/octave-mcp/.venv/bin/python`, handshake 5.6 s); con `python3` del sistema muere
   con `ModuleNotFoundError: No module named 'ocas'` (`server.py:92` → `ocas_symbolic_tool.py:24`).
@@ -53,13 +64,16 @@
   (`~/.cache/uv` 1.3 G, xdg-cache del workbench ~630 M, BraveSoftware, `__pycache__` 91 M,
   basura PostScript `gc/oo/sys`). No se tocó `opencode.db` (3.2 G), extensiones de Blender
   (655 M), `octave-mcp/.venv` (1.3 G) ni `.venv-pyscf` (438 M).
-- Working tree de `mcp-ecosystem-chiloe` con **12 archivos modificados del usuario** (incl.
-  `verificar_mcp.py`, `octave_mcp.py`, `bolsa_mcp.py`, `claude_desktop_config.template.json`,
-  `jobs.py`, `copasi_mcp.py`, `gazebo_*.py`, `mcp_suelos.py`, `hilbert_tool.py`, `btfloat.py`):
-  **intactos**, no auditados salvo lo indicado en el informe.
-- Bug del WIP del usuario: `verificar_mcp.py` usa `os.environ.copy()` (línea 59) y el WIP
-  eliminó el `import os` que **HEAD sí tenía** (línea 16) → `NameError` al arrancar el
-  verificador. El WIP también **reintroduce** la copia obsoleta en la ruta de `octave`.
+- Working tree de `mcp-ecosystem-chiloe`: el WIP del usuario queda **intacto y sin commitear**
+  (incluye `verificar_mcp.py`, `bolsa_mcp.py`, `claude_desktop_config.template.json`,
+  `jobs.py`, `copasi_mcp.py`, `gazebo_*.py`, `mcp_suelos.py`, `hilbert_tool.py`, `btfloat.py`).
+  El commit `982ab0f` incluye **solo** 4 archivos propios (`octave_runner.py` nuevo,
+  `octave_mcp.py`, `middle_square_weyl_tool.py`, `ancestral_octave_tool.py`) → patrón
+  `git commit --only <paths>` para no arrastrar WIP ajeno.
+- El WIP del usuario reintroducía la copia obsoleta en la ruta de `octave`; **corregido** en el
+  working tree del template, pero **sin commitear** (queda mezclado con el WIP del usuario).
+- `verificar_mcp.py`: el `import os` que el WIP había borrado (y que HEAD sí tenía) fue
+  restituido → el archivo vuelve al estado de HEAD en ese punto y no genera diff.
 
 - `Ternario-ancestral-sensores`: `master` local y remoto @ `b361241` (antes `f91a669`).
   Commit `544f633` = los 12 bugs (B1–B12) + deuda D1/D2; `b361241` = memoria del ciclo.
