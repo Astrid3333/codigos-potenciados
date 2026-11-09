@@ -18,3 +18,6 @@ pki/
 codigos-potenciados/*.key
 codigos-potenciados/*.crt
 codigos-potenciados/tls-config.env
+
+# clon anidado analizado en el ciclo 5 (repo propio, no parte de githu)
+/mcp-ecosystem-chiloe/
