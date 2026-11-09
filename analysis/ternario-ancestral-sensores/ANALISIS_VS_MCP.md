@@ -10,6 +10,56 @@
 
 ---
 
+## 0. Estado tras la corrección (actualizado 2026-11-08)
+
+Los 12 bugs (B1–B12) y la deuda D1/D2 de este informe **fueron corregidos** en
+`Ternario-ancestral-sensores`, commit **`544f633`** ("Fix 12 bugs confirmados del
+analisis vs MCP"), integrado en `master` (`f91a669` → `544f633`, pusheado).
+
+| Ítem | Estado | Dónde quedó resuelto |
+|---|---|---|
+| B1/B2 | corregido | `tritos_gui.py`: `import sys`, `disk.img` → `disk_img` con `output/releases/disk.img` |
+| B3 | corregido | `src/fs.c`: 6 comparaciones del marcador 0xE5 sobre `(uint8_t)`; escritura `(char)0xE5` |
+| B4 | corregido | `src/usb_storage.c`: `vendor[17]`, `product[17]`, `memset(data, 0, sizeof data)` |
+| B5 | corregido | `tritos_lab/tritos_godot.py:98` (cadena de argumentos) |
+| B6 | corregido | `tritos_lab/__init__.py` nuevo → el paquete tapa el módulo homónimo |
+| B7 | corregido | `src/libc_full.c`: `getchar` en `unsigned char`, valida `syscall_read`, devuelve `EOF` (`#define EOF (-1)` en `ternary.h`) |
+| B8 | corregido | `num_to_str_bounded`/`int_to_str_bounded` en `ternary.h`; **355 llamadas** migradas en 24 archivos (41 buffers `nb[2]`) |
+| B9 | corregido | prototipos de `mem_alloc`, `mem_free`, `serial_putc`, `serial_puts`, `wm_redraw` |
+| B10 | corregido | `src/net.c`: `(uint32_t)(uintptr_t)ptr` (`uintptr_t` definido en `ternary.h`) |
+| B11 | corregido | `elf_dynamic.c`: `global_symbol_count` → `uint16_t`; `scheduler.c`: días tzolkin/haab → `uint16_t` y `sched_get_state` con `uint16_t*` |
+| B12 | corregido | `run_all.m`: Landauer reportado por modelo (clásico vs multinivel) y por unidad (bit vs símbolo) |
+| D1/D2 | corregido | `build-kernel.sh` delega en el `Makefile` canónico; el `Makefile` crea `releases/`, no reescribe el `grub.cfg` versionado y `clean` no borra archivos versionados |
+| D3/D4 | corregido | `make clean` preserva `boot/boot.bin`, `boot/multiboot_header.o` e `iso/boot/grub/grub.cfg`; `AGENTS.md` actualizado con la versión de kernel real |
+
+**Bugs extra** detectados durante la corrección (no estaban en el análisis original):
+
+- `build-kernel.sh` **pisaba el `linker.ld` versionado** con uno incompatible
+  (`ENTRY(kernel_main)`, base `0x10000`, sin sección `.multiboot`) → rompía el boot multiboot.
+- `make clean` **borraba archivos versionados** (`boot/boot.bin`, `boot/multiboot_header.o`, `grub.cfg`).
+- `make all` **fallaba en un clon limpio** (no creaba `output/releases/`).
+- El `Makefile` **reescribía el `grub.cfg` versionado** en cada build → working tree sucio siempre.
+
+**Verificación tras los fixes** (mismo instrumental):
+
+- gcc `-m32 -Wall -Wextra` sobre las 45 TUs: **0 errores**; avisos **89 → 68**, y las
+  clases de bug real quedaron en 0 (`-Wtype-limits` 9→0, `-Wimplicit-function-declaration` 5→0,
+  `-Wuninitialized`/`-Wmaybe-uninitialized` 2→0, `-Wpointer-to-int-cast` 2→0). Los 68 restantes
+  son `unused-variable/function/parameter` y `sign-compare`.
+- `make all` produce `output/releases/ternary_os.iso` + `disk.img`; el kernel **bootea en QEMU**.
+- `make all` en `output/tak-userspace`: los 6 binarios compilan.
+- Los 2 experimentos Octave terminan con "TODO MEDIDO OK".
+- `py_compile` OK; ruff en los archivos tocados 25 → 14 hallazgos (0 nuevos).
+
+**Integración sin pisar el WIP del usuario**: se trabajó en un worktree aparte
+(`/tmp/tritos-fix`, rama `fix/analisis-vs-mcp`) porque el repo principal tenía WIP sin
+commitear del usuario (GUI del kernel sobre framebuffer) que tocaba `ternary.h`, `kernel.c`
+y `window.c`. La integración fue `stash push -u` → `merge --ff-only` → `stash pop`; el único
+conflicto (`ternary.h`, mismo punto de inserción de prototipos) se resolvió conservando
+ambos conjuntos. El WIP del usuario quedó **sin commitear y sin cambios**, y no entró al remoto.
+
+---
+
 ## 1. Alcance y cobertura
 
 | Superficie | Volumen | Analizado con |

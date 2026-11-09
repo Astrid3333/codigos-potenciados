@@ -41,6 +41,7 @@
 8. Do not present inference as verified fact.
 9. Close completed work instead of leaving it hanging.
 10. Capture one reusable lesson in each review.
+11. Compute measurements without truncation and classify findings by category before reporting counts.
 
 ## Self-Evolution Loop
 - At the end of each cycle, ask: what could be better?
