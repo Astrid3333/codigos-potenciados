@@ -17,12 +17,17 @@
       "id": "C3-1",
       "severidad": "alta",
       "titulo": "formulas_tool.py no versionado: el repo publicado no arranca para un clon",
-      "archivos": ["servidores-propios/octave_mcp.py:12", "servidores-propios/formulas_tool.py"],
+      "archivos": [
+        "servidores-propios/octave_mcp.py:12",
+        "servidores-propios/formulas_tool.py"
+      ],
       "estado": "CORREGIDO por el agente en 065ed73",
       "evidencia": {
         "import_fallido": "ModuleNotFoundError: No module named 'formulas_tool'",
         "traza": "File \"/tmp/opencode/clone-test/servidores-propios/octave_mcp.py\", line 12, in <module>\n    from formulas_tool import (",
-        "clone_pre_fix": {"octave_mcp": "FAIL ModuleNotFoundError"},
+        "clone_pre_fix": {
+          "octave_mcp": "FAIL ModuleNotFoundError"
+        },
         "clone_post_fix": {
           "octave_mcp": "import OK",
           "gazebo_core": "import OK",
@@ -39,27 +44,44 @@
       "id": "C3-2",
       "severidad": "alta",
       "titulo": "El WIP de jobs.py rompe run_gromacs: shell=False + shlex.split no entiende el '&&'",
-      "archivos": ["jobs.py:117-123 (WIP)", "server.py:140 (cmd con &&)"],
-      "estado": "ABIERTO - requiere decisión del usuario (no se tocó su WIP)",
+      "archivos": [
+        "jobs.py:117-123 (WIP)",
+        "server.py:140 (cmd con &&)"
+      ],
+      "estado": "CORREGIDO por el agente en 8bfd6ba - opcion A: run_gromacs parte el pipeline en grompp (sincrono, timeout 300 s, log propio) + mdrun (background, argv list, sin operadores de shell)",
       "evidencia": {
         "cmd_construido": "gmx grompp -f {mdp} -c {gro} -p {top} -o topol.tpr -maxwarn 5 && gmx mdrun -deffnm topol {nt_flag}",
         "nivel_python": {
           "wip_log": "uno && echo dos",
           "head_log": "uno\ndos",
-          "wip_shlex": ["echo", "uno", "&&", "echo", "dos"]
+          "wip_shlex": [
+            "echo",
+            "uno",
+            "&&",
+            "echo",
+            "dos"
+          ]
         },
         "nivel_mcp_gromacs_2023_3": {
           "wip_log": "Invalid command-line options\n  In command-line option -maxwarn\n    Invalid value: '&&'; expected an integer\n    Invalid value: 'gmx'; expected an integer\n    Invalid value: 'mdrun'; expected an integer\n    Unknown command-line option -deffnm",
           "head_log": "Command line:\n  gmx grompp -f ... -o topol.tpr -maxwarn 5\n...\nstarting mdrun 'Argon one-atom test'\n0 steps,      0.0 ps.\nPerformance:        8.199        2.927",
           "conclusion": "HEAD ejecuta grompp+mdrun completos; el WIP aborta antes de arrancar"
-        }
+        },
+        "solucion_aplicada": "server.py:run_gromacs ya no arma un cmd con '&&'. grompp corre con subprocess.run(argv_list, cwd=..., timeout=300); si falla devuelve {error, stage:'grompp', returncode, log_path, log_tail} y NO lanza mdrun. mdrun se lanza como job background con cmd = shlex.quote por token.",
+        "verificacion_ok": "job gromacs_run_fix_1794250922 (GROMACS 2023.3): 'Invalid value: &&' = 0 ocurrencias; parse_results -> finished: true, energy_blocks_found: 3, performance: '299.413 ns/day'",
+        "verificacion_error": "camino de error: stage grompp -> {\"error\": \"grompp fallo; no se lanzo la simulacion\", \"stage\": \"grompp\", \"returncode\": 1}"
       }
     },
     {
       "id": "C3-3",
       "severidad": "media",
       "titulo": "gazebo_utils.py no versionado: el WIP de los 3 servidores gazebo no es reproducible",
-      "archivos": ["servidores-propios/gazebo_core.py:14", "servidores-propios/gazebo_entities.py:12", "servidores-propios/gazebo_quantum.py:30", "servidores-propios/gazebo_utils.py"],
+      "archivos": [
+        "servidores-propios/gazebo_core.py:14",
+        "servidores-propios/gazebo_entities.py:12",
+        "servidores-propios/gazebo_quantum.py:30",
+        "servidores-propios/gazebo_utils.py"
+      ],
       "estado": "CORREGIDO por el agente en 065ed73 (modulo agregado; ademas se detecto que reintroduce la ruta parcial 'gz', patron B607 que el WIP elimina en otros archivos)",
       "evidencia": {
         "importadores": 3,
@@ -71,22 +93,49 @@
       "id": "C3-4",
       "severidad": "media",
       "titulo": "COPASI: 9 tools expuestas sin capacidad real (bindings inexistentes)",
-      "archivos": ["/home/astrid/.config/Claude/claude_desktop_config.json (copasi.env)", "servidores-propios/copasi_mcp.py:41"],
-      "estado": "ABIERTO - decision del usuario: instalar COPASI o quitar las entradas",
+      "archivos": [
+        "/home/astrid/.config/Claude/claude_desktop_config.json (copasi.env)",
+        "servidores-propios/copasi_mcp.py:41"
+      ],
+      "estado": "CORREGIDO en 8bfd6ba - COPASI 4.48.311 existe en /home/astrid/venv-copasi; el server se adaptó a la API 4.48 y la config desplegada y el template apuntan al venv con COPASI_BINDINGS_DIR",
       "evidencia": {
         "COPASI_BINDINGS_DIR": "/home/astrid/COPASI/build/copasi/bindings/python",
         "existe_dir": false,
         "import_COPASI": "ModuleNotFoundError: No module named 'COPASI'",
         "degradacion": "estado_copasi responde texto 'COPASI NO disponible' + traceback (el server arranca y no revienta)",
-        "tools_listadas": 9
+        "tools_listadas": 9,
+        "hallazgo_real": "COPASI no estaba ausente de la maquina: estaba instalado en el venv /home/astrid/venv-copasi (COPASI 4.48.311 + mcp + numpy/scipy/pandas/matplotlib/cffi). El bloqueador era que la config pedia python3 del sistema y un bindings dir inexistente (/home/astrid/COPASI/build/copasi/bindings/python).",
+        "config_corregida": {
+          "command": "/home/astrid/venv-copasi/bin/python",
+          "COPASI_BINDINGS_DIR": "/home/astrid/venv-copasi/lib/python3.12/site-packages",
+          "archivos": [
+            "/home/astrid/.config/Claude/claude_desktop_config.json",
+            "claude_desktop_config.template.json"
+          ]
+        },
+        "bugs_de_api_corregidos": [
+          "setChemEq() no existe en 4.48 -> setReactionScheme(esquema)",
+          "saveModel() escribe CopasiML (no SBML) -> _load_model() intenta loadModel() antes de importSBML()",
+          "al recargar un modelo se pierde el mapeo sustrato/producto -> metabolito y la simulacion aborta con 'Invalid state' y NaN -> _reparar_mapeo_reacciones() re-aplica esquema + funcion",
+          "setInitialConcentration() no persiste al guardar; setInitialExpression() si (compilando antes)",
+          "la serie de COPASI viene en particulas: se convierte a concentraciones (÷N_A ÷volumen) antes del SSE"
+        ],
+        "verificacion_7_tools": "estado_copasi, listar_modelos, construir_modelo_simple, info_modelo, obtener_parametro, simular y ajustar_parametro_simple: los 7 responden OK por MCP",
+        "verificacion_numerica": {
+          "simulacion": "A(10) = 0.0674 mol vs analitico 10*exp(-0.5*10) = 0.0674 (error rel ~1e-5)",
+          "ajuste_k1": "k1 = 0.5 recuperado (SSE 5.6138e-07); k1 = 0.25 recuperado exacto (SSE 9.495e-12)",
+          "ajuste_A0": "A0 ≈ 9.4444 en grilla (verdad 10)"
+        }
       }
     },
     {
       "id": "C3-5",
       "severidad": "baja",
       "titulo": "Colision de job_id: dos jobs del mismo motor+nombre en el mismo segundo se pisan",
-      "archivos": ["jobs.py:create_job"],
-      "estado": "ABIERTO - sugerencia: sufijo con uuid4 o contador",
+      "archivos": [
+        "jobs.py:create_job"
+      ],
+      "estado": "ABIERTO - el WIP se commiteo tal cual en 3bf3141; sigue sin corregirse",
       "evidencia": {
         "job_a": "gromacs_mismo_1794247259",
         "job_b": "gromacs_mismo_1794247259",
@@ -97,8 +146,12 @@
       "id": "C3-6",
       "severidad": "baja",
       "titulo": "Imports sin usar: 6 F401 nuevos (3 en modificados, 3 en el archivo nuevo) + 5 preexistentes",
-      "archivos": ["servidores-propios/gazebo_entities.py:7-8", "servidores-propios/gazebo_quantum.py:30", "servidores-propios/formulas_tool.py:37,42,48"],
-      "estado": "ABIERTO - menor; ruff --fix los resuelve",
+      "archivos": [
+        "servidores-propios/gazebo_entities.py:7-8",
+        "servidores-propios/gazebo_quantum.py:30",
+        "servidores-propios/formulas_tool.py:37,42,48"
+      ],
+      "estado": "ABIERTO - el WIP se commiteo tal cual en 3bf3141; sigue sin corregirse (ruff --fix pendiente)",
       "evidencia": {
         "nuevos_por_wip": [
           "gazebo_entities.py:7 F401 subprocess imported but unused",
@@ -122,15 +175,24 @@
       "id": "C3-7",
       "severidad": "baja",
       "titulo": "Helper _octave_bin() duplicado en 3 lugares tras el ciclo 5",
-      "archivos": ["servidores-propios/octave_runner.py", "servidores-propios/hilbert_tool.py:129-134", "servidores-propios/mcp_suelos.py:14-19"],
-      "estado": "ABIERTO - sugerencia: importar desde octave_runner (ya existe y esta versionado)",
-      "evidencia": {"copias": 3, "cuerpo_identico": true}
+      "archivos": [
+        "servidores-propios/octave_runner.py",
+        "servidores-propios/hilbert_tool.py:129-134",
+        "servidores-propios/mcp_suelos.py:14-19"
+      ],
+      "estado": "ABIERTO - el WIP se commiteo tal cual en 3bf3141; sigue sin corregirse",
+      "evidencia": {
+        "copias": 3,
+        "cuerpo_identico": true
+      }
     },
     {
       "id": "C3-8",
       "severidad": "informativa",
       "titulo": "Cambio de contrato en mcp_suelos.ejecutar_octave: ahora devuelve JSON, antes stdout crudo",
-      "archivos": ["servidores-propios/mcp_suelos.py"],
+      "archivos": [
+        "servidores-propios/mcp_suelos.py"
+      ],
       "estado": "A DOCUMENTAR - consumidores que esperen texto plano deben actualizarse",
       "evidencia": {
         "antes": "return result.stdout",
@@ -141,27 +203,93 @@
       "id": "C3-9",
       "severidad": "informativa",
       "titulo": "Clave TLS privada sin trackear y sin regla de ignore",
-      "archivos": ["mcp-ecosystem-chiloe.key", ".gitignore"],
+      "archivos": [
+        "mcp-ecosystem-chiloe.key",
+        ".gitignore"
+      ],
       "estado": "CORREGIDO por el agente en 065ed73 (*.key, *.crt, *.pem, *.p12)",
       "evidencia": {
         "contenido": "-----BEGIN PRIVATE KEY-----",
         "cert": "CN=localhost, O=Kalix OpenScience, valido 2026-11-06 a 2029-02-08",
-        "check_ignore_post_fix": [".gitignore:20:*.key mcp-ecosystem-chiloe.key", ".gitignore:21:*.crt ca.crt"]
+        "check_ignore_post_fix": [
+          ".gitignore:20:*.key mcp-ecosystem-chiloe.key",
+          ".gitignore:21:*.crt ca.crt"
+        ]
+      }
+    },
+    {
+      "id": "C3-10",
+      "severidad": "media",
+      "titulo": "parse_gromacs_log leia el stdout capturado del job, pero GROMACS 2018+ escribe el log completo en el cwd (topol.log / md.log): 'finished' y los bloques de energia nunca aparecian",
+      "archivos": [
+        "parsers.py:parse_gromacs_log",
+        "server.py:parse_results"
+      ],
+      "estado": "CORREGIDO por el agente en 8bfd6ba (parse_gromacs_log(log_path, cwd=None) + GROMACS_LOG_NAMES + clave 'log_file')",
+      "evidencia": {
+        "antes": "run largo de 200 pasos -> energy_blocks_found: 0, finished: false (falso negativo)",
+        "despues": "job gromacs_run_long_1794256195 -> finished: true, had_error_keyword: false, energy_blocks_found: 3, performance: '299.413 ns/day', log_file: /tmp/opencode/mdtest/run_long/topol.log"
+      }
+    },
+    {
+      "id": "C3-11",
+      "severidad": "media",
+      "titulo": "El detector de errores del log de GROMACS buscaba 'error' a secas (re.I): la prosa normal del programa ('the error in the average pressure') lo disparaba en toda simulacion exitosa",
+      "archivos": [
+        "parsers.py:parse_gromacs_log"
+      ],
+      "estado": "CORREGIDO por el agente en 8bfd6ba (regex r'Fatal error|^ERROR \\d+|\\bSegmentation fault\\b' con re.M)",
+      "evidencia": {
+        "antes": "simulacion de 200 pasos -> had_error_keyword: true (falso positivo)",
+        "despues": "had_error_keyword: false sobre el mismo log"
       }
     }
   ],
   "verificado_bueno_del_wip": [
-    {"cambio": "jobs.py: shell=True -> shell=False + shlex.split (fix de injection)", "estado": "correcto en seguridad, rompe el pipeline GROMACS (ver C3-2)"},
-    {"cambio": "jobs.py: KeyError explicito, job.get('pid'), type hints, encoding utf-8", "estado": "verificado: KeyError ok, refresh_status sin KeyError"},
-    {"cambio": "jobs.py: log_file cerrado en el camino de excepcion", "estado": "verificado: no hay fuga de fd (delta 0 con 3 jobs, CPython cierra por refcount)"},
-    {"cambio": "mcp_suelos.py: timeout=15 en requests + raise_for_status + error por fuente", "estado": "verificado"},
-    {"cambio": "mcp_suelos.py: tempfile.mkstemp en vez de /tmp fijo + cleanup en finally", "estado": "verificado: 0 archivos temporales huerfanos"},
-    {"cambio": "mcp_suelos.py: timeout de Octave", "estado": "verificado: 3.0 s -> {\"error\": \"Octave excedio el timeout de 3s\"}"},
-    {"cambio": "hilbert_tool.py: mkstemp + _octave_bin()", "estado": "verificado: transform am_chirp OK, 0 temporales huerfanos"},
-    {"cambio": "bolsa_mcp.py: fastmcp -> mcp.server.fastmcp", "estado": "verificado en MCP con dato real: AAPL cierre 349.36, volumen 16723148"},
-    {"cambio": "gazebo_*: refactor a gazebo_utils (run_gz/euler_to_quaternion)", "estado": "verificado en MCP: gz_version -> Gazebo Sim 8.15.0"},
-    {"cambio": "copasi_mcp.py: mcp.run() en vez de mcp.run(transport='stdio')", "estado": "equivalente (stdio es el default)"},
-    {"cambio": "verificar_mcp.py: import os repuesto", "estado": "identico a HEAD en ese punto (A1 del ciclo 5)"}
+    {
+      "cambio": "jobs.py: shell=True -> shell=False + shlex.split (fix de injection)",
+      "estado": "correcto en seguridad, rompe el pipeline GROMACS (ver C3-2)"
+    },
+    {
+      "cambio": "jobs.py: KeyError explicito, job.get('pid'), type hints, encoding utf-8",
+      "estado": "verificado: KeyError ok, refresh_status sin KeyError"
+    },
+    {
+      "cambio": "jobs.py: log_file cerrado en el camino de excepcion",
+      "estado": "verificado: no hay fuga de fd (delta 0 con 3 jobs, CPython cierra por refcount)"
+    },
+    {
+      "cambio": "mcp_suelos.py: timeout=15 en requests + raise_for_status + error por fuente",
+      "estado": "verificado"
+    },
+    {
+      "cambio": "mcp_suelos.py: tempfile.mkstemp en vez de /tmp fijo + cleanup en finally",
+      "estado": "verificado: 0 archivos temporales huerfanos"
+    },
+    {
+      "cambio": "mcp_suelos.py: timeout de Octave",
+      "estado": "verificado: 3.0 s -> {\"error\": \"Octave excedio el timeout de 3s\"}"
+    },
+    {
+      "cambio": "hilbert_tool.py: mkstemp + _octave_bin()",
+      "estado": "verificado: transform am_chirp OK, 0 temporales huerfanos"
+    },
+    {
+      "cambio": "bolsa_mcp.py: fastmcp -> mcp.server.fastmcp",
+      "estado": "verificado en MCP con dato real: AAPL cierre 349.36, volumen 16723148"
+    },
+    {
+      "cambio": "gazebo_*: refactor a gazebo_utils (run_gz/euler_to_quaternion)",
+      "estado": "verificado en MCP: gz_version -> Gazebo Sim 8.15.0"
+    },
+    {
+      "cambio": "copasi_mcp.py: mcp.run() en vez de mcp.run(transport='stdio')",
+      "estado": "equivalente (stdio es el default)"
+    },
+    {
+      "cambio": "verificar_mcp.py: import os repuesto",
+      "estado": "identico a HEAD en ese punto (A1 del ciclo 5)"
+    }
   ],
   "no_reproducido": [
     "Fuga de file descriptors por log_file no cerrado en jobs.start_job: delta 0 al abrir 3 jobs (CPython cierra el file object al salir de la funcion). No se reporta como bug.",
@@ -169,7 +297,33 @@
     "El uso de `&&` dentro de jobs.py no es un problema en el camino LAMMPS: el cmd de lmp no lleva operadores de shell, por eso run_lammps sigue funcionando con shell=False."
   ],
   "commits": [
-    {"repo": "mcp-ecosystem-chiloe", "hash": "065ed73", "push": "origin/main", "contenido": "agrega formulas_tool.py y gazebo_utils.py; .gitignore ignora claves/certs y limpia lineas basura"},
-    {"repo": "githu", "hash": "PENDIENTE", "contenido": "ANALISIS_WIP.md, wip_audit_evidence.json, notes y knowledge"}
+    {
+      "repo": "mcp-ecosystem-chiloe",
+      "hash": "065ed73",
+      "push": "origin/main",
+      "contenido": "agrega formulas_tool.py y gazebo_utils.py; .gitignore ignora claves/certs y limpia lineas basura"
+    },
+    {
+      "repo": "mcp-ecosystem-chiloe",
+      "hash": "8bfd6ba",
+      "push": "origin/main",
+      "contenido": "fix propio: GROMACS en dos etapas (grompp sincrono + mdrun background) y log real de GROMACS; COPASI 4.48.311 operativo (setReactionScheme, _load_model, _reparar_mapeo_reacciones, concentraciones iniciales persistentes, conversion de unidades para el ajuste); template con el venv de COPASI"
+    },
+    {
+      "repo": "mcp-ecosystem-chiloe",
+      "hash": "3bf3141",
+      "push": "origin/main",
+      "contenido": "WIP del usuario commiteado tal cual (jobs.py, verificar_mcp.py y 7 servidores-propios); los untracked preexistentes quedaron fuera"
+    },
+    {
+      "repo": "githu",
+      "hash": "PENDIENTE",
+      "contenido": "ANALISIS_WIP.md, wip_audit_evidence.json, notes y knowledge con el estado final del ciclo 6"
+    }
+  ],
+  "commit_head": "3bf3141",
+  "commits_finales": [
+    "8bfd6ba",
+    "3bf3141"
   ]
 }

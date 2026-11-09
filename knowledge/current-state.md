@@ -161,7 +161,10 @@
   `${XDG_DATA_HOME:-...}`, que hereda el valor del escritorio) o el socket Unix no funciona.
 - Los sockets del puente (`~/.local/share/yutengjing-vscode-mcp/*.sock`) se borran cuando
   VS Code se cierra: `list_workspaces` con 0 resultados puede significar solo "VS Code cerrado".
-- Ciclo 6 (2026-11-09): `mcp-ecosystem-chiloe` quedó en `065ed73` (pusheado a `origin/main`).
+- Ciclo 6 (2026-11-09): `mcp-ecosystem-chiloe` quedó en `3bf3141` (pusheado a `origin/main`), con tres
+  commits: `065ed73` (versiona `formulas_tool.py` + `gazebo_utils.py` sin modificarlos y agrega
+  `*.key/*.crt/*.pem/*.p12` al `.gitignore`), `8bfd6ba` (fixes propios: GROMACS en dos etapas + log real +
+  COPASI 4.48 operativo + template con el venv) y `3bf3141` (el WIP del usuario commiteado byte a byte).
   `git ls-files` es la fuente de verdad para dependencias: `octave_mcp.py` importa
   `formulas_tool` y los 3 servidores gazebo (solo en el WIP) importan `gazebo_utils`; ambos
   módulos estaban **sin versionar** → el repo publicado fallaba con
@@ -169,17 +172,29 @@
   (módulos agregados sin modificar + `*.key/*.crt/*.pem/*.p12` en `.gitignore`): clon limpio
   importa 7/7 servidores y `octave_mcp` expone 13 tools.
 - `shlex.split` **no** interpreta operadores de shell: con `shell=False`, un `&&` dentro del cmd
-  llega como argumento literal. El WIP de `jobs.py` (shell=True→shell=False) rompe `run_gromacs`,
-  que arma `gmx grompp ... && gmx mdrun ...` en `server.py:140`. Verificado por MCP con GROMACS
-  2023.3 real: WIP → `Invalid value: '&&'; expected an integer`; HEAD → grompp+mdrun completos.
-  `run_lammps` no se ve afectado (su cmd no lleva operadores). Fix: partir el pipeline en dos
-  pasos (manteniendo `shell=False`) o volver a `shell=True` con `shlex.quote` por token.
+  llega como argumento literal. El WIP de `jobs.py` (shell=True→shell=False) rompía `run_gromacs`,
+  que armaba `gmx grompp ... && gmx mdrun ...`. **Resuelto (`8bfd6ba`, opción A)**: `run_gromacs`
+  corre `grompp` de forma síncrona (`subprocess.run` con argv list y timeout de 300 s, log en
+  `cwd/grompp.log`; si falla devuelve `stage: "grompp"` y no lanza mdrun) y luego `mdrun` como job en
+  background con `shlex.quote` por token. `run_lammps` no se ve afectado (su cmd no lleva operadores).
 - `create_job` arma el id con `int(time.time())` → dos jobs del mismo motor+nombre en el mismo
   segundo **comparten id** y el segundo pisa al primero (`gromacs_mismo_1794247259`).
-- En `mcp-ecosystem-chiloe` la config desplegada de `copasi` apunta a
-  `COPASI_BINDINGS_DIR=/home/astrid/COPASI/build/copasi/bindings/python`, que **no existe** y no
-  hay instalación de COPASI: las 9 tools de copasi arrancan pero no pueden simular (el server
-  degrada y lo informa en `estado_copasi`).
+- GROMACS 2018+ escribe el log completo en el **directorio de trabajo** (`topol.log` / `md.log`), no en el
+  stdout que captura el job: `parse_gromacs_log(log_path, cwd=None)` busca ahí (`GROMACS_LOG_NAMES`) y
+  devuelve `log_file` con la ruta realmente leída. Además la prosa del programa contiene *"the error in
+  the average pressure"*, así que detectar errores buscando `error` a secas da falsos positivos: el patrón
+  correcto es `r"Fatal error|^ERROR \d+|\bSegmentation fault\b"` con `re.M`.
+- En `mcp-ecosystem-chiloe` la config de `copasi` (desplegada y template) apunta a
+  `/home/astrid/venv-copasi/bin/python` con `COPASI_BINDINGS_DIR=/home/astrid/venv-copasi/lib/python3.12/site-packages`:
+  **COPASI 4.48.311 sí está instalado** en ese venv (el bloqueo original era el entorno de la config,
+  no la instalación). `copasi_mcp.py` quedó adaptado a la API 4.48: `setReactionScheme` (no existe
+  `setChemEq`), `saveModel()` escribe **CopasiML** (no SBML) → `_load_model()` prueba `loadModel()`
+  antes que `importSBML()`, y al recargar un modelo se pierde el mapeo sustrato/producto → metabolito
+  (la simulación aborta con `"Invalid state"` y serie en NaN) → `_reparar_mapeo_reacciones()` re-aplica
+  esquema + función. Las concentraciones iniciales solo persisten con `setInitialExpression()` (tras
+  `compileIfNecessary()`), no con `setInitialConcentration()`. La serie de salida viene en nº de
+  partículas: hay que convertirla a concentraciones (÷ N_A ÷ volumen del compartimento) antes de
+  calcular un SSE. Orden correcto: valor → reparar → compilar una vez → `applyInitialValues()` → simular.
 - `mcp_suelos.ejecutar_octave` (WIP) cambia su contrato: devuelve JSON con `stdout`/`stderr`/
   `returncode` donde antes devolvía stdout crudo; los consumidores con texto plano deben
   actualizarse.
