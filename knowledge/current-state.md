@@ -1,20 +1,25 @@
 # Current State
 
 - Goal: entregar análisis estáticos de repos vía VS Code MCP + MCP Inspector.
-- Stage: ciclo 5 (`mcp-ecosystem-chiloe`, análisis declarado vs. MCP real) — **cerrado**: fixes
-  de código, entorno y despliegue aplicados y re-verificados; ciclo 4 (Ternario) cerrado antes.
-- Current task: ciclo 5 cerrado. Estado medido post-corrección (2026-11-09 14:26, MCP Inspector
-  2.13.0): template **21/24 responden, 250 tools**; config desplegada **21/22, 734 tools** (antes
-  17/28 · 196 y 9/12 · 639). Informe con §7 de cierre en
-  `analysis/mcp-ecosystem-chiloe/ANALISIS_VS_MCP.md`, evidencia en
-  `analysis/mcp-ecosystem-chiloe/mcp_inspector_tools.json`, captura reproducible en
-  `analysis/mcp-ecosystem-chiloe/capture_tools.py`. Fixes: A1 (`import os` restituido),
-  A2 (`id` correlacionable), A3 (nuevo `octave_runner.py` compartido), A4 (validaciones +
-  `digits` funcional), B2 (scipy 1.18.1 reinstalado en los 2 venvs), B1/B4 (template a la ruta
-  canónica + podas + npx real), B3 (10 servidores agregados a la config desplegada).
-- Next action: con el usuario — decidir si el `octave` viejo del deploy (3 tools) se reemplaza
-  por `octave-chiloe` (13 tools), y si `bench`/`mcp-blender-full`/`unrealMCP` entran al
-  template. Pendiente known: auditar los 12 archivos del WIP del usuario (C3) y los 3
+- Stage: ciclo 6 (auditoría del **WIP del usuario** en `mcp-ecosystem-chiloe`) — **cerrado con 2
+  fixes aplicados y 3 decisiones pendientes del usuario**; ciclo 5 (análisis declarado vs. MCP
+  real) cerrado antes; ciclo 4 (Ternario) cerrado antes.
+- Current task: ciclo 6 cerrado. Auditoría del WIP (11 archivos modificados + 12 untracked) en
+  `analysis/mcp-ecosystem-chiloe/ANALISIS_WIP.md` + `wip_audit_evidence.json`. Hallazgos:
+  **C3-1 alta** (`formulas_tool.py` sin versionar → el repo publicado no arrancaba en clon
+  limpio; **corregido** en `065ed73`), **C3-2 alta** (`jobs.py` con `shell=False`+`shlex.split`
+  rompe `run_gromacs`: el cmd lleva `&&`; **abierto, es WIP del usuario**), **C3-3 media**
+  (`gazebo_utils.py` sin versionar; **corregido** en `065ed73`), **C3-4 media** (COPASI no
+  instalado → 9 tools sin capacidad), C3-5 baja (`job_id` colisiona), C3-6 baja (6 F401
+  nuevos), C3-7 baja (`_octave_bin()` duplicado ×3), C3-8 info (cambio de contrato JSON en
+  `ejecutar_octave`), C3-9 info (clave TLS sin regla de ignore; **corregido**). Verificado bueno
+  del WIP: timeout+cleanup de `mcp_suelos`, `hilbert_tool` con `mkstemp`, `bolsa_mcp` con dato
+  real (AAPL 349,36), `gazebo-core` (`Gazebo Sim 8.15.0`), `copasi` degrada bien.
+- Next action: con el usuario — (a) elegir el fix de C3-2 (A: partir el pipeline GROMACS en dos
+  pasos y mantener `shell=False`; B: `shell=True` + `shlex.quote` por token), (b) decidir si
+  `copasi` sale de la config desplegada hasta instalar COPASI, (c) decidir si el `octave` viejo
+  (3 tools) se reemplaza por `octave-chiloe` (13) y si `bench`/`mcp-blender-full`/`unrealMCP`
+  entran al template, (d) decidir si se versiona su WIP completo. Pendiente known: los 3
   servidores `uvx` que requieren red (`gdal`, `openbb-mcp`, `qgis`).
 - Ciclo 4 (cerrado): las 12 correcciones de Ternario están aplicadas y commiteadas en
   `Ternario-ancestral-sensores` (`master` @ `b361241`, fix de código en `544f633`, pusheado).
@@ -156,3 +161,29 @@
   `${XDG_DATA_HOME:-...}`, que hereda el valor del escritorio) o el socket Unix no funciona.
 - Los sockets del puente (`~/.local/share/yutengjing-vscode-mcp/*.sock`) se borran cuando
   VS Code se cierra: `list_workspaces` con 0 resultados puede significar solo "VS Code cerrado".
+- Ciclo 6 (2026-11-09): `mcp-ecosystem-chiloe` quedó en `065ed73` (pusheado a `origin/main`).
+  `git ls-files` es la fuente de verdad para dependencias: `octave_mcp.py` importa
+  `formulas_tool` y los 3 servidores gazebo (solo en el WIP) importan `gazebo_utils`; ambos
+  módulos estaban **sin versionar** → el repo publicado fallaba con
+  `ModuleNotFoundError: No module named 'formulas_tool'` en cualquier clon limpio. Tras el fix
+  (módulos agregados sin modificar + `*.key/*.crt/*.pem/*.p12` en `.gitignore`): clon limpio
+  importa 7/7 servidores y `octave_mcp` expone 13 tools.
+- `shlex.split` **no** interpreta operadores de shell: con `shell=False`, un `&&` dentro del cmd
+  llega como argumento literal. El WIP de `jobs.py` (shell=True→shell=False) rompe `run_gromacs`,
+  que arma `gmx grompp ... && gmx mdrun ...` en `server.py:140`. Verificado por MCP con GROMACS
+  2023.3 real: WIP → `Invalid value: '&&'; expected an integer`; HEAD → grompp+mdrun completos.
+  `run_lammps` no se ve afectado (su cmd no lleva operadores). Fix: partir el pipeline en dos
+  pasos (manteniendo `shell=False`) o volver a `shell=True` con `shlex.quote` por token.
+- `create_job` arma el id con `int(time.time())` → dos jobs del mismo motor+nombre en el mismo
+  segundo **comparten id** y el segundo pisa al primero (`gromacs_mismo_1794247259`).
+- En `mcp-ecosystem-chiloe` la config desplegada de `copasi` apunta a
+  `COPASI_BINDINGS_DIR=/home/astrid/COPASI/build/copasi/bindings/python`, que **no existe** y no
+  hay instalación de COPASI: las 9 tools de copasi arrancan pero no pueden simular (el server
+  degrada y lo informa en `estado_copasi`).
+- `mcp_suelos.ejecutar_octave` (WIP) cambia su contrato: devuelve JSON con `stdout`/`stderr`/
+  `returncode` donde antes devolvía stdout crudo; los consumidores con texto plano deben
+  actualizarse.
+- Tool `MCP Inspector 2.13.0` (CLI): el **target va antes de las opciones** →
+  `inspector --cli python3 /path/server.py --method tools/call --tool-name X --tool-arg k=v`;
+  si el target va al final, `--tool-arg` se lo traga (`Invalid parameter format: python3`).
+  `tools/list` devuelve `{"tools":[...]}`: parsear con `raw_decode` para contar tools.
