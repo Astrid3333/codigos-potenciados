@@ -46,3 +46,13 @@
   `codigos-potenciados/tools/gen_compile_commands.py`.
 - En Linux cpptools no propaga warnings del compilador al panel de Problemas (solo semántica
   IntelliSense); los warnings de gcc hay que obtenerlos aparte.
+- MCP Inspector v2.13.0 instalado global (`npm i -g @modelcontextprotocol/inspector`; binarios
+  `inspector`/`mcp-inspector` en el prefix global de Node, ya en el PATH). El "conector"
+  auditado es `/home/astrid/vscode-mcp/node_modules/.bin/vscode-mcp-server` (8 tools del
+  puente de VS Code); atajo `~/.local/bin/mcp-inspector-vscode` (web por defecto, `--cli`/`--tui`).
+- El escritorio (workbench) define `XDG_DATA_HOME` con un path largo
+  (`/home/astrid/.local/share/com.ai4s.workbench/runtime/xdg-data`): los scripts que lanzan
+  el conector deben **forzar** `XDG_DATA_HOME=/home/astrid/.local/share` (no usar
+  `${XDG_DATA_HOME:-...}`, que hereda el valor del escritorio) o el socket Unix no funciona.
+- Los sockets del puente (`~/.local/share/yutengjing-vscode-mcp/*.sock`) se borran cuando
+  VS Code se cierra: `list_workspaces` con 0 resultados puede significar solo "VS Code cerrado".
