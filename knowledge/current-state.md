@@ -1,18 +1,42 @@
 # Current State
 
-- Goal: entregar el análisis estático de `octave-mcp` mediante las herramientas MCP de VS Code.
-- Stage: completado y verificado (informe en `analysis/octave-mcp/ANALISIS_VS_MCP.md`).
-- Current task: informe entregado. Cobertura: los 19 archivos del manifiesto estricto de CI
-  (`ci/ruff_files.txt`) + 13 archivos legacy seleccionados por gravedad de lint, con dos
-  analizadores independientes dentro de VS Code (Pylance 2026.4.1 y extensión Ruff) más
-  contraste con `ruff` 0.15.19 en CLI y ejecución directa de módulos. 109 diagnósticos en el
-  manifiesto estricto (88 ERROR, 21 HINT/WARN): ~60 por contrato de tipos sin anotar y ~20 por
-  stubs de sympy/scipy; 5 bugs reales confirmados (2 verificados por ejecución).
-- Next action: decidir con el usuario si se aplican las correcciones recomendadas (priorizadas
-  en el informe; el arreglo de `plotting_tools.py` en primer lugar, más una decisión de
-  arquitectura sobre el subpaquete `tools/`), o si se continúa con otro repo.
+- Goal: entregar análisis estáticos de repos vía VS Code MCP + MCP Inspector.
+- Stage: ciclo 3 (Ternario-ancestral-sensores) completado y verificado
+  (informe en `analysis/ternario-ancestral-sensores/ANALISIS_VS_MCP.md`).
+- Current task: informe entregado. Cobertura: kernel bare-metal completo (45 `.c`, 20 413
+  líneas), userspace TAK (29 `.c`), 47 `.py`, 10 `.m` (Octave), 5 `.sh`, 2 `.ino`. Instrumentos:
+  VS Code MCP (Pylance + Ruff + cpptools) vía MCP Inspector 2.13.0, gcc 13.3.0 (`-m32`),
+  ruff CLI, Octave y ejecución real. 12 bugs reales confirmados (Python: 2 NameError en la
+  GUI, 1 SyntaxError, 1 sombreado de paquete; C: FAT16 0xE5 con char con signo, OOB de 1 byte
+  en USB, `getchar` sin inicializar, 41 buffers de 2 bytes con `num_to_str`, 5 declaraciones
+  implícitas, 3 guardas de rango inoperantes; científico: mezcla de modelos de Landauer).
+  El kernel y el userspace compilan y linkean; los 2 experimentos Octave corren.
+- Next action: decidir con el usuario si se aplican las correcciones priorizadas del informe
+  (`tritos_gui.py` primero: `import sys` + `disk_img`; después `tritos_lab/` y el marcador
+  FAT16), o si se continúa con otro repo.
 
 ## Facts_changed
+
+- `Ternario-ancestral-sensores` está clonado en `/home/astrid/Ternario-ancestral-sensores`
+  (`master` @ `f91a669`); es el OS "Tritos" y tiene su propio `AGENTS.md`/`KNOWLEDGE.md`/
+  `notes/`. Análisis de solo lectura (único archivo escrito: probe de control, eliminado).
+- Bugs de Tritos verificados: `tritos_gui.py` usa `sys` sin importarlo (7 usos) y `disk.img`
+  en vez de `disk_img` (2388); `tritos_lab/tritos_godot.py:98` tiene un SyntaxError;
+  `tritos_lab.py` sombrea al paquete `tritos_lab/` (ImportError en Blender y Godot);
+  `fs.c` compara 0xE5 contra `char` con signo (6 sitios → el borrado FAT16 es inoperante);
+  `usb_storage.c:86` escribe `product[16]` en `char product[16]` (corrompe `mounted`);
+  `libc_full.c:345` devuelve `char` sin inicializar; `num_to_str` (`ternary.h:273`) no acota
+  el destino y hay 41 llamadas con `char nb[2]`; `elf_dynamic.c:133` y `scheduler.c:123,128`
+  tienen guardas que nunca se disparan (contador `uint8_t` vs límites 256/260/365);
+  `run_all.m:88-94` mezcla dos modelos de coste de Landauer (imprime 1.585 y "5.7 % más
+  eficiente" a la vez).
+- `build-kernel.sh` está obsoleto frente al `Makefile`: compila 3 de 45 TUs y su ISO usa
+  `linux16` para una imagen multiboot; el `Makefile` construye los 45 y usa `multiboot`.
+- En `Ternario-ancestral-sensores` el barrido con gcc da 89 avisos en 27 archivos del kernel
+  (9 `type-limits`, 5 `implicit-function-declaration`, 2 `uninitialized`, 2 `maybe-uninitialized`,
+  2 `pointer-to-int-cast`); los `.py` de la raíz dan 51 hallazgos ruff y los del
+  `experiment-suite` 22.
+
 
 - `octave-mcp` está clonado en `/home/astrid/octave-mcp` (rama `migracion-mcp-octave-real`,
   HEAD `5d84431`); `git fetch` por SSH funciona. El informe vive en el workspace propio
