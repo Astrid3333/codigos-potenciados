@@ -8,10 +8,14 @@ clon limpio de `origin/main` · MCP Inspector 2.13.0 (`tools/list` + `tools/call
 A/B del pipeline GROMACS por MCP contra HEAD y contra el WIP · sesión real de Claude Desktop (logs de
 `~/.config/Claude/logs/mcp.log`) · env mínimo (`env -i`) para separar código de entorno.
 **Estado final:** `065ed73` (fix de versionado) → `8bfd6ba` (fixes propios) → `3bf3141` (WIP commiteado tal cual)
-→ `d4cb051` (C3-5/C3-6/C3-7 corregidos) → `42ab49a` (template alineado), los cinco pusheados a `origin/main`.
+→ `d4cb051` (C3-5/C3-6/C3-7 corregidos) → `42ab49a` (template alineado) → `e56a081` (C3-8 corregido), los seis
+pusheados a `origin/main`.
 **Cierre operativo:** config desplegada y template alineados (22 → 22 con `md-simulation` en lugar del
 `octave` viejo; template 24 → 28), Claude Desktop relanzado con el config real y **24 servidores levantados**
 (23 con handshake OK; `openbb-mcp` cae por red).
+**Corrida de humo:** `run_gromacs` verificado de punta a punta con el **env de la app** (§7.4) — pipeline
+completo, `finished: true`, 3 bloques de energía, `203.969 ns/day`. La corrida **dentro de la UI** de Claude
+Desktop queda bloqueada por cuota de mensajes (§7.5).
 
 Evidencia cruda: `wip_audit_evidence.json`.
 
@@ -31,7 +35,7 @@ type hints, errores explícitos), pero trae **dos regresiones y una dependencia 
 | C3-5 | baja | Colisión de `job_id` (mismo motor+nombre en el mismo segundo) | **Corregido** (`d4cb051`) |
 | C3-6 | baja | 6 imports sin usar nuevos (3 en modificados, 3 en el archivo nuevo) | **Corregido** (`d4cb051`) |
 | C3-7 | baja | `_octave_bin()` duplicado en 3 archivos | **Corregido** (`d4cb051`) |
-| C3-8 | info | `mcp_suelos.ejecutar_octave` cambia su contrato (JSON en vez de stdout crudo) | A documentar |
+| C3-8 | info | `mcp_suelos.ejecutar_octave` cambia su contrato (JSON en vez de stdout crudo) | **Corregido** (`e56a081`) |
 | C3-9 | info | Clave TLS privada sin trackear **y sin regla de ignore** | **Corregido** (`065ed73`) |
 | C3-10 | media | `parse_gromacs_log` leía el stdout del job; el log real de GROMACS 2018+ está en `topol.log` → `finished` y los bloques de energía nunca aparecían | **Corregido** (`8bfd6ba`) |
 | C3-11 | media | El detector de errores buscaba `error` a secas → la prosa del programa ("the error in the average pressure") disparaba un falso positivo en toda simulación exitosa | **Corregido** (`8bfd6ba`) |
@@ -49,6 +53,7 @@ inyección de shell en `jobs.py` — que es justo lo que causa C3-2.
 | `3bf3141` | tu WIP commiteado byte a byte (`jobs.py`, `verificar_mcp.py` y 7 servidores-propios) |
 | `d4cb051` | C3-5 (`job_id` con `uuid4`), C3-6 (16 imports muertos) y C3-7 (`octave_bin()` centralizado) |
 | `42ab49a` | template: `octave` → `octave-chiloe` + `md-simulation`, `bench`, `mcp-blender-full`, `unrealMCP` |
+| `e56a081` | C3-8: `ejecutar_octave`/`analizar_suelo` devuelven `dict` con contrato documentado |
 
 ---
 
@@ -261,8 +266,12 @@ recompilar deja el modelo en `NaN` ("Invalid state").
   (con alias `_octave_bin = octave_bin` para no romper imports previos) y los otros dos lo importan:
   `from octave_runner import octave_bin`. El `import shutil` local de esos dos archivos se eliminó al
   quedar sin uso.
-- **C3-8 contrato** — `mcp_suelos.ejecutar_octave` ahora devuelve JSON (`stdout`/`stderr`/`returncode`) donde
-  antes devolvía stdout crudo. Cualquier consumidor que espere texto plano tiene que actualizarse.
+- **C3-8 contrato — CORREGIDO (`e56a081`).** `mcp_suelos.ejecutar_octave` devuelve JSON
+  (`stdout`/`stderr`/`returncode`) donde antes devolvía stdout crudo. El cambio se normalizó: ambos handlers
+  (`ejecutar_octave` y `analizar_suelo`) devuelven un **`dict`** con claves explícitas (`ok`, `stdout`,
+  `stderr`, `returncode`, y `error` cuando corresponde), con docstrings en español que fijan el contrato.
+  Se eliminó el `import json` que quedó sin uso. Verificado con `ruff` y `py_compile`, y por MCP en los tres
+  caminos (ok / timeout / error).
 - **C3-9 clave TLS** — `mcp-ecosystem-chiloe.key` (clave privada de localhost, CN=localhost) estaba sin
   trackear **y sin regla de `.gitignore`**: un `git add -A` la publicaba. Ahora `*.key`, `*.crt`, `*.pem`,
   `*.p12` están ignorados (y se limpiaron dos líneas basura de un heredoc previo).
@@ -306,6 +315,13 @@ y se corrigieron después, en `d4cb051`.
 **`42ab49a` → `origin/main` (template alineado):** `claude_desktop_config.template.json` pasa de 24 a 28
 servidores: `octave` → `octave-chiloe` (el mismo `octave_mcp.py` del repo canónico, 13 tools) y se suman
 `md-simulation` (GROMACS/LAMMPS, 8 tools), `bench`, `mcp-blender-full` y `unrealMCP`.
+
+**`e56a081` → `origin/main` (C3-8):**
+
+10. `servidores-propios/mcp_suelos.py`: `ejecutar_octave` y `analizar_suelo` devuelven `dict` (`ok`, `stdout`,
+    `stderr`, `returncode`, y `error` cuando corresponde) con docstrings en español que fijan el contrato;
+    se elimina el `import json` que quedó sin uso. Verificado por MCP (ok / timeout / error), `ruff` y
+    `py_compile`.
 
 **Fuera de los commits** (untracked preexistentes, anteriores al ciclo de auditoría): `notes/`,
 `knowledge/`, `innovative_test.py`, `test_alternatives.py`, `test_final.py`, `test_tool.py` y
@@ -371,14 +387,52 @@ Resultado en `~/.config/Claude/logs/mcp.log` (sesión nueva): **24 servidores** 
 `tools/list`; **cero** apariciones del `octave` viejo. Único error: `openbb-mcp` →
 *"Server transport closed unexpectedly"* (necesita red para `uvx`).
 
+### 7.4 Corrida de humo de `run_gromacs` con el env de la app
+
+La corrida de humo se ejecutó por el mismo canal que usa la app (MCP sobre `stdio`) y con **el mismo
+entorno** que Claude Desktop: `env -i HOME=/home/astrid PATH=<bin del runtime + /usr/bin:/bin>
+XDG_CONFIG_HOME=/home/astrid/.config XDG_DATA_HOME=/home/astrid/.local/share LANG=C.UTF-8`, cwd `/tmp`.
+
+| paso | resultado |
+|---|---|
+| `tools/list` | 8 tools de `md-simulation` (`run_gromacs`, `run_lammps`, `job_status`, `parse_results`, …) |
+| `run_gromacs` (mini.mdp + conf.gro + topol.top) | job `gromacs_smoke_app_1794273194_0e4478`, cwd `/tmp/opencode/mdtest/run_app`, pid 117987 |
+| `job_status` | `status: finished` |
+| `parse_results` | `finished: true`, `had_error_keyword: false`, `energy_blocks_found: 3`, `performance: 203.969 ns/day`, `log_file: /tmp/opencode/mdtest/run_app/topol.log` |
+
+Artefactos: `topol.{tpr,log,edr,cpt,gro}`, `grompp.log`, `mdrun.log`, `mdout.mdp`.
+Es decir: **el pipeline completo (grompp → mdrun → parseo del log real) funciona con el entorno de la app**,
+y con ello quedan cubiertos C3-10 y C3-11 en la ruta de la app.
+
+### 7.5 Lo que NO se pudo verificar desde la UI de Claude Desktop
+
+La corrida se intentó además **desde el chat de Claude Desktop** (ventana nativa, 2026-11-10 01:4x). Lo que
+queda registrado:
+
+1. **El mensaje se envió** y **el modelo respondió**: al pedirle sus herramientas disponibles listó *GitHub,
+   bench, Claude Octave, Unreal y Claude Docs* → **`md-simulation` no le fue expuesta** en esa sesión.
+2. **No hubo `tools/call`**: `~/.config/Claude/logs/mcp.log` no registra ninguna invocación a `md-simulation`
+   desde las 23:52, no se creó el job `smoke_ui` y no existe `/tmp/opencode/mdtest/run_ui/`.
+3. **Cuota del plan free**: el composer muestra *"You are out of free messages until 3:30 AM"* con botón
+   *Upgrade* → aunque la herramienta se exponga, la UI no puede completar hoy la invocación.
+4. El lado servidor está sano: tras reiniciar Claude Desktop (pid 125480, 01:45:32) **vuelve a levantar los
+   24 servidores** y `md-simulation` completa initialize → `tools/list` → result en menos de 0,1 s, sin
+   errores ni warnings en `mcp.log`. `main.log` tampoco registra errores de lanzamiento para este server.
+
+**Diagnóstico honesto:** la integración MCP de `md-simulation` con Claude Desktop funciona (handshake,
+`tools/list`, respuesta), pero **el modelo de esa sesión no recibió la herramienta**. La causa exacta no
+queda confirmada; los candidatos son el filtrado por servidor del cliente o la indexación de herramientas
+por sesión. Queda abierto hasta confirmarlo con una sesión nueva y sin límite de cuota.
+
 ---
 
 ## 8. Limitaciones
 
 - El A/B de GROMACS usó un sistema mínimo de un átomo con `nsteps=0` para el pipeline de comandos, y un
   run de 200 pasos para la lectura del log: prueba el **pipeline y el parseo**, no la física de la
-  simulación. `md-simulation` ya está en la config desplegada, pero su `run_gromacs` no se volvió a correr
-  dentro de Claude Desktop (queda pendiente una corrida de humo desde la app).
+  simulación. La corrida de humo con el env de la app (§7.4) confirma el pipeline completo
+  (grompp → mdrun → parseo de `topol.log`); lo que sigue pendiente es la invocación **desde el chat de la
+  UI**, bloqueada por la cuota de mensajes (§7.5).
 - `gdal`, `qgis` y `openbb-mcp` siguen sin poder verificarse offline (requieren `uvx` con red). En la
   sesión real, `openbb-mcp` es el único que efectivamente cae.
 - COPASI, GROMACS y LAMMPS se verificaron con las versiones instaladas en esta máquina (COPASI 4.48.311,
@@ -394,4 +448,10 @@ Resultado en `~/.config/Claude/logs/mcp.log` (sesión nueva): **24 servidores** 
 - Las decisiones de ciclo 5 quedan **cerradas**: `octave` viejo sustituido por `octave-chiloe`,
   `bench` / `mcp-blender-full` / `unrealMCP` incorporados al template y `md-simulation` a las dos configs,
   con Claude Desktop reiniciado y verificado.
-- C3-8 sigue **documentado, no corregido**: `mcp_suelos.ejecutar_octave` cambió su contrato a JSON.
+- C3-8 quedó **corregido** (`e56a081`): `mcp_suelos.ejecutar_octave` y `analizar_suelo` devuelven `dict` con
+  contrato documentado, verificado por MCP en los tres caminos (ok / timeout / error).
+- La **exposición de herramientas en la UI** de Claude Desktop no coincide con la lista de servidores
+  conectados (24 servidores arriba, pero el modelo solo listó 5 herramientas y ninguna de `md-simulation`):
+  es un comportamiento del cliente, no del server, y queda abierto hasta confirmarlo con una sesión sin
+  cuota. La prueba de UI se hizo por input sintético (teclado y clicks), sin selectores semánticos: las
+  acciones quedan marcadas como no verificadas y se respaldaron con capturas, `mcp.log` y el estado de jobs.

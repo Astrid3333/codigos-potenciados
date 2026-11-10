@@ -2,8 +2,10 @@
 
 - Goal: entregar análisis estáticos de repos vía VS Code MCP + MCP Inspector.
 - Stage: ciclo 6 (auditoría del **WIP del usuario** en `mcp-ecosystem-chiloe`) — **cerrado**:
-  12 hallazgos, 9 corregidos, 1 documentado, 1 cerrado a nivel de entorno, 1 pendiente de corrida de
-  humo; ciclo 5 (análisis declarado vs. MCP real) cerrado antes; ciclo 4 (Ternario) cerrado antes.
+  12 hallazgos, **10 corregidos**, 1 cerrado a nivel de entorno (C3-12) y la corrida de humo **ejecutada
+  con éxito vía MCP con el env de la app**; lo único abierto es la invocación **desde el chat de la UI**
+  de Claude Desktop (bloqueada por cuota y por exposición de herramientas). Ciclo 5 (análisis declarado
+  vs. MCP real) cerrado antes; ciclo 4 (Ternario) cerrado antes.
 - Current task: ciclo 6 cerrado. Auditoría del WIP (11 archivos modificados + 12 untracked) en
   `analysis/mcp-ecosystem-chiloe/ANALISIS_WIP.md` + `wip_audit_evidence.json`. Hallazgos:
   **C3-1 alta** (`formulas_tool.py` sin versionar → el repo publicado no arrancaba en clon
@@ -13,7 +15,8 @@
   era el entorno, no la instalación; **corregido** en `8bfd6ba` + config con el venv), C3-5 baja
   (`job_id` colisiona; **corregido** en `d4cb051`), C3-6 baja (16 imports muertos; **corregido** en
   `d4cb051`), C3-7 baja (`_octave_bin()` duplicado ×3; **corregido** en `d4cb051`), C3-8 info
-  (cambio de contrato JSON en `ejecutar_octave`; **documentado, no corregido**), C3-9 info (clave TLS
+  (cambio de contrato JSON en `ejecutar_octave`; **corregido** en `e56a081`: ambos handlers devuelven
+  `dict` con contrato documentado), C3-9 info (clave TLS
   sin regla de ignore; **corregido**), C3-10/C3-11 media (log real de GROMACS y falso positivo de
   `error`; **corregidos** en `8bfd6ba`), **C3-12 media** (`octave-chiloe` sano pero invisible para
   Claude Desktop/Inspector por los `XDG_*` del runtime del workbench; **corregido a nivel máquina**:
@@ -21,14 +24,17 @@
   `~/.local/share/octave/api-v61/packages/`). Verificado bueno del WIP: timeout+cleanup de
   `mcp_suelos`, `hilbert_tool` con `mkstemp`, `bolsa_mcp` con dato real (AAPL 349,36),
   `gazebo-core` (`Gazebo Sim 8.15.0`), `copasi` operativo con la solución analítica.
-- Next action: con el usuario — (a) una corrida de humo de `run_gromacs` **desde Claude Desktop**
-  (`md-simulation` ya está en la config; los fixes se verificaron por Inspector, no en la app),
-  (b) decidir si C3-8 (contrato JSON de `ejecutar_octave`) se ajusta o se documenta para los
-  consumidores, (c) pendiente known: los 3 servidores `uvx` que requieren red (`gdal`,
-  `openbb-mcp`, `qgis` — `openbb-mcp` es el único que efectivamente cae en la sesión real).
-  **Cerrado en este ciclo**: C3-2 (opción A), `copasi` con venv, `octave` viejo → `octave-chiloe`,
-  `bench`/`mcp-blender-full`/`unrealMCP`/`md-simulation` en las configs, y el WIP versionado
-  (`3bf3141`).
+- Next action: con el usuario — (a) reintentar la corrida de `run_gromacs` **desde el chat de Claude
+  Desktop** cuando termine el límite de cuota (*"You are out of free messages until 3:30 AM"*) y confirmar
+  si `md-simulation` aparece entre las herramientas del modelo (en la sesión probada no le fue expuesta,
+  aunque el server está sano: handshake + `tools/list` OK), (b) reiniciar Claude Desktop para que
+  `analisis-suelos` tome el `mcp_suelos.py` nuevo (`e56a081`), (c) pendiente known: los 3 servidores
+  `uvx` que requieren red (`gdal`, `openbb-mcp`, `qgis` — `openbb-mcp` es el único que efectivamente
+  cae en la sesión real).
+  **Cerrado en este ciclo**: C3-2 (opción A), C3-5/6/7, C3-8, `copasi` con venv, `octave` viejo →
+  `octave-chiloe`, `bench`/`mcp-blender-full`/`unrealMCP`/`md-simulation` en las configs, el WIP
+  versionado (`3bf3141`) y la corrida de humo con el env de la app (job
+  `gromacs_smoke_app_1794273194_0e4478`, `finished: true`).
 - Ciclo 4 (cerrado): las 12 correcciones de Ternario están aplicadas y commiteadas en
   `Ternario-ancestral-sensores` (`master` @ `b361241`, fix de código en `544f633`, pusheado).
   Verificado: gcc `-m32 -Wall -Wextra` sobre las 45 TUs del kernel con 0 errores y con las
@@ -39,6 +45,21 @@
   ruff sin hallazgos nuevos. El informe se actualizó con la sección "0. Estado tras la corrección".
 
 ## Facts_changed
+
+- `mcp-ecosystem-chiloe` `origin/main` @ **`e56a081`** (push `42ab49a..e56a081`): **C3-8 corregido** —
+  `servidores-propios/mcp_suelos.py`: `ejecutar_octave` y `analizar_suelo` devuelven `dict` (`ok`,
+  `stdout`, `stderr`, `returncode`, `error` si aplica) con docstrings que fijan el contrato; se eliminó
+  el `import json` muerto. Verificado por MCP (ok / timeout / error), `ruff` y `py_compile`.
+- Corrida de humo de `run_gromacs` **con el env de la app** (`env -i` + `XDG_*` reales, MCP Inspector
+  2.13.0, cwd `/tmp`): job `gromacs_smoke_app_1794273194_0e4478` en `/tmp/opencode/mdtest/run_app` →
+  `status: finished`, `finished: true`, `had_error_keyword: false`, 3 bloques de energía,
+  `203.969 ns/day`, log real en `topol.log`. Cubre C3-10 y C3-11 en la ruta de la app.
+- Prueba desde la **UI de Claude Desktop** (2026-11-10 01:4x): el mensaje se envió y el modelo respondió,
+  pero listó solo GitHub / bench / Claude Octave / Unreal / Claude Docs → **`md-simulation` no le fue
+  expuesta**; sin `tools/call` en `mcp.log`, sin job `smoke_ui` y sin `run_ui/`; el composer muestra
+  *"You are out of free messages until 3:30 AM"*. El server está sano: tras el reinicio de Claude Desktop
+  (pid 125480, 01:45:32) levantan los 24 servidores y `md-simulation` completa initialize → `tools/list`
+  → result sin errores ni warnings.
 
 - `mcp-ecosystem-chiloe` `origin/main` @ **`42ab49a`** (push `d4cb051..42ab49a`): `d4cb051` = C3-5
   (`job_id` con sufijo `uuid4().hex[:6]`), C3-6 (16 imports muertos vía `ruff --select F401 --fix`;

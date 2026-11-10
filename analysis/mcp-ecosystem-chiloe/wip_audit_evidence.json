@@ -211,10 +211,12 @@
       "archivos": [
         "servidores-propios/mcp_suelos.py"
       ],
-      "estado": "A DOCUMENTAR - consumidores que esperen texto plano deben actualizarse",
+      "estado": "CORREGIDO (e56a081) - contrato normalizado a dict en ejecutar_octave y analizar_suelo, con docstrings",
       "evidencia": {
-        "antes": "return result.stdout",
-        "ahora": "json.dumps({'stdout':..., 'stderr':..., 'returncode':...})"
+        "antes": "return result.stdout  (texto crudo)",
+        "ahora": "return {'ok': bool, 'stdout': str, 'stderr': str, 'returncode': int} (+ 'error' en los caminos de fallo), en dict",
+        "complemento": "se elimino el 'import json' que quedo sin uso; docstrings en espanol que fijan el contrato",
+        "verificacion": "ruff y py_compile OK; por MCP: ok, timeout y error devuelven estructura (no texto plano)"
       }
     },
     {
@@ -396,11 +398,56 @@
       "verificado": "mcp.log de la sesion nueva: md-simulation y octave-chiloe responden tools/list con result; 0 apariciones del 'octave' viejo"
     }
   },
-  "commit_head": "42ab49a",
+  "commit_head": "e56a081",
   "commits_finales": [
     "8bfd6ba",
     "3bf3141",
     "d4cb051",
-    "42ab49a"
-  ]
+    "42ab49a",
+    "e56a081"
+  ],
+  "smoke_test_app": {
+    "objetivo": "verificar run_gromacs de punta a punta con el mismo entorno que usa Claude Desktop",
+    "canal": "MCP sobre stdio (MCP Inspector 2.13.0: tools/list + tools/call), cwd /tmp",
+    "env": "env -i HOME=/home/astrid PATH=<runtime + /usr/bin:/bin> XDG_CONFIG_HOME=/home/astrid/.config XDG_DATA_HOME=/home/astrid/.local/share LANG=C.UTF-8",
+    "resultado": "OK",
+    "job_id": "gromacs_smoke_app_1794273194_0e4478",
+    "cwd": "/tmp/opencode/mdtest/run_app",
+    "pid": 117987,
+    "job_status": "finished",
+    "parse_results": {
+      "finished": true,
+      "had_error_keyword": false,
+      "energy_blocks_found": 3,
+      "performance": "203.969 ns/day",
+      "log_file": "/tmp/opencode/mdtest/run_app/topol.log"
+    },
+    "artefactos": [
+      "topol.tpr",
+      "topol.log",
+      "topol.edr",
+      "topol.cpt",
+      "topol.gro",
+      "grompp.log",
+      "mdrun.log",
+      "mdout.mdp"
+    ],
+    "conclusion": "el pipeline completo (grompp -> mdrun -> parseo del log real) funciona con el env de la app; cubre C3-10 y C3-11 en esa ruta"
+  },
+  "prueba_ui_claude_desktop": {
+    "objetivo": "invocar run_gromacs desde el chat de Claude Desktop",
+    "resultado": "NO COMPLETADA - bloqueada por cuota y por exposicion de herramientas",
+    "hechos_verificados": [
+      "el mensaje se envio desde la ventana nativa (tecla 'Enter'; con 'Return' el tool de computer-use escribe el caracter '4' en Linux)",
+      "el modelo respondio y, al listar sus herramientas disponibles, mentiono GitHub, bench, Claude Octave, Unreal y Claude Docs: md-simulation no le fue expuesta",
+      "mcp.log no registra ningun tools/call hacia md-simulation desde las 23:52; no se creo el job 'smoke_ui' y no existe /tmp/opencode/mdtest/run_ui/",
+      "el composer muestra 'You are out of free messages until 3:30 AM' con boton Upgrade",
+      "tras reiniciar Claude Desktop (pid 125480, 2026-11-10T01:45:32) se levantan los 24 servidores otra vez y md-simulation completa initialize -> tools/list -> result en menos de 0,1 s, sin errores ni warnings",
+      "main.log no registra errores de lanzamiento para md-simulation"
+    ],
+    "estado_del_server": "sano (handshake, tools/list y respuesta correctos)",
+    "causa_del_fallo_de_exposicion": "no confirmada; candidatos: filtrado por servidor del cliente o indexacion de herramientas por sesion",
+    "metodo": "input sintetico (teclado y clicks) sobre la app nativa; sin selectores semanticos, por lo que cada accion queda marcada como no verificada y se respaldó con capturas, mcp.log y el estado de jobs",
+    "pendiente": "reintentar la invocacion desde el chat con una sesion sin limite de cuota y confirmar si md-simulation aparece entre las herramientas del modelo"
+  }
 }
