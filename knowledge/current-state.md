@@ -46,6 +46,10 @@
 
 ## Facts_changed
 
+- `mcp-ecosystem-chiloe` `origin/main` @ **`1208598`** (commit propio del usuario, 2026-11-09 23:50
+  −0300): `jobs._pid_alive` da por **terminado** un proceso zombie (`os.waitpid(pid, WNOHANG)` + estado
+  `Z` leído de `/proc/<pid>/stat`) y suma una regla de `.gitignore`. Incluye `e56a081` (C3-8) como
+  ancestro. No auditado por el agente: fuera del alcance del informe, que cierra en `e56a081`.
 - `mcp-ecosystem-chiloe` `origin/main` @ **`e56a081`** (push `42ab49a..e56a081`): **C3-8 corregido** —
   `servidores-propios/mcp_suelos.py`: `ejecutar_octave` y `analizar_suelo` devuelven `dict` (`ok`,
   `stdout`, `stderr`, `returncode`, `error` si aplica) con docstrings que fijan el contrato; se eliminó

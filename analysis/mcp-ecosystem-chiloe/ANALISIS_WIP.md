@@ -323,6 +323,11 @@ servidores: `octave` → `octave-chiloe` (el mismo `octave_mcp.py` del repo can�
     se elimina el `import json` que quedó sin uso. Verificado por MCP (ok / timeout / error), `ruff` y
     `py_compile`.
 
+> Después de `e56a081`, `origin/main` avanzó a **`1208598`** con un commit propio del usuario
+> (`jobs._pid_alive` ahora da por terminado un proceso zombie: `os.waitpid(pid, WNOHANG)` + estado `Z`
+> de `/proc/<pid>/stat`, más una regla de `.gitignore`). No lo auditó el agente; queda fuera del alcance
+> de este informe, que cierra en `e56a081`.
+
 **Fuera de los commits** (untracked preexistentes, anteriores al ciclo de auditoría): `notes/`,
 `knowledge/`, `innovative_test.py`, `test_alternatives.py`, `test_final.py`, `test_tool.py` y
 `servidores-propios/{alternatives_mcp.py, auto_mcp_config.py, fix_motion.py, github_sync.py,
