@@ -135,11 +135,14 @@
       "archivos": [
         "jobs.py:create_job"
       ],
-      "estado": "ABIERTO - el WIP se commiteo tal cual en 3bf3141; sigue sin corregirse",
+      "estado": "CORREGIDO por el agente en d4cb051 - job_id = {engine}_{job_name}_{ts}_{uuid4().hex[:6]}",
       "evidencia": {
-        "job_a": "gromacs_mismo_1794247259",
-        "job_b": "gromacs_mismo_1794247259",
-        "mismo_id": true
+        "antes_job_a": "gromacs_mismo_1794247259",
+        "antes_job_b": "gromacs_mismo_1794247259",
+        "antes_mismo_id": true,
+        "despues": "5 create_job consecutivos con motor+nombre identicos -> 5 job_id distintos",
+        "formato_nuevo": "gromacs_mismo_<ts>_<6 hex>",
+        "nota": "server.py solo propaga el job_id, no parsea el formato (verificado por grep)"
       }
     },
     {
@@ -151,7 +154,7 @@
         "servidores-propios/gazebo_quantum.py:30",
         "servidores-propios/formulas_tool.py:37,42,48"
       ],
-      "estado": "ABIERTO - el WIP se commiteo tal cual en 3bf3141; sigue sin corregirse (ruff --fix pendiente)",
+      "estado": "CORREGIDO por el agente en d4cb051 - ruff --select F401 --fix sobre git ls-files '*.py'",
       "evidencia": {
         "nuevos_por_wip": [
           "gazebo_entities.py:7 F401 subprocess imported but unused",
@@ -168,7 +171,20 @@
           "gazebo_core.py:8 F401 signal",
           "gazebo_quantum.py:21 F401 os"
         ],
-        "total_working_tree": 11
+        "total_working_tree": 11,
+        "imports_eliminados": 16,
+        "archivos_tocados": [
+          "brian2_mcp.py",
+          "formulas_tool.py",
+          "gazebo_core.py",
+          "gazebo_entities.py",
+          "gazebo_quantum.py",
+          "goertzel_tool.py",
+          "sbtcvm_mcp_server.py",
+          "stiff_ode_tool.py"
+        ],
+        "verificacion": "ruff check --select F401,F811,F841,E9 -> All checks passed!; py_compile OK en todos los .py versionados",
+        "no_tocado": "avisos de bandit (S311, B905): son decisiones de diseno, no imports muertos"
       }
     },
     {
@@ -180,10 +196,12 @@
         "servidores-propios/hilbert_tool.py:129-134",
         "servidores-propios/mcp_suelos.py:14-19"
       ],
-      "estado": "ABIERTO - el WIP se commiteo tal cual en 3bf3141; sigue sin corregirse",
+      "estado": "CORREGIDO por el agente en d4cb051 - octave_runner.octave_bin() publico (+ alias _octave_bin) y los otros dos lo importan",
       "evidencia": {
-        "copias": 3,
-        "cuerpo_identico": true
+        "copias_antes": 3,
+        "cuerpo_identico": true,
+        "despues": "hilbert_tool.py y mcp_suelos.py usan 'from octave_runner import octave_bin'; se elimino el import shutil local",
+        "back_compat": "alias _octave_bin = octave_bin en octave_runner.py"
       }
     },
     {
@@ -242,6 +260,29 @@
       "evidencia": {
         "antes": "simulacion de 200 pasos -> had_error_keyword: true (falso positivo)",
         "despues": "had_error_keyword: false sobre el mismo log"
+      }
+    },
+    {
+      "id": "C3-12",
+      "severidad": "media",
+      "titulo": "octave-chiloe era sano pero invisible para Claude Desktop y el Inspector: los paquetes de Octave solo existian bajo el XDG_* del runtime del workbench",
+      "archivos": [
+        "/home/astrid/.config/octave/api-v61/octave_packages",
+        "/home/astrid/.local/share/octave/api-v61/packages/",
+        "servidores-propios/octave_runner.py"
+      ],
+      "estado": "CORREGIDO a nivel maquina (fuera del repo): registro copiado a la ruta XDG por defecto y rutas del registro reescritas (con su '# length:') hacia la copia estable del usuario",
+      "evidencia": {
+        "sintoma": "package signal is not installed (mcp_suelos y octave-chiloe) en Claude Desktop / Inspector, con el server levantando bien en el shell del workbench",
+        "causa": "el registro de paquetes de Octave vive en $XDG_CONFIG_HOME/octave/api-v61/octave_packages y los paquetes en $XDG_DATA_HOME/octave/api-v61/packages; el shell del workbench exporta XDG_* al runtime de la app, Claude Desktop usa las rutas por defecto",
+        "fix": [
+          "copiar control-4.2.3, signal-1.4.8 y symbolic-3.2.2 a /home/astrid/.local/share/octave/api-v61/packages/",
+          "copiar el registro a /home/astrid/.config/octave/api-v61/octave_packages y reescribir 6 rutas (actualizando el '# length:' de cada una) hacia la copia estable",
+          "el registro del workbench queda intacto: pkg load signal sigue funcionando ahi"
+        ],
+        "verificacion": "env -i PATH=/usr/bin:/bin HOME=/home/astrid octave --eval \"pkg load signal\" -> OK; pkg list muestra los 3 paquetes en ~/.local/share/octave/api-v61/packages",
+        "verificacion_mcp": "compute_hilbert_transform(preset=am_chirp) via MCP -> envolvente 0.5->1.5, f_instante 50 Hz",
+        "descartado": "pkg install -local de los paquetes de Debian -> exige COPYING/DESCRIPTION con Categories y falla con 'package control is empty'"
       }
     }
   ],
@@ -316,14 +357,49 @@
       "contenido": "WIP del usuario commiteado tal cual (jobs.py, verificar_mcp.py y 7 servidores-propios); los untracked preexistentes quedaron fuera"
     },
     {
+      "repo": "mcp-ecosystem-chiloe",
+      "hash": "d4cb051",
+      "push": "origin/main",
+      "contenido": "C3-5 (job_id con sufijo uuid4), C3-6 (16 imports muertos via ruff --select F401 --fix) y C3-7 (octave_bin() centralizado en octave_runner.py)"
+    },
+    {
+      "repo": "mcp-ecosystem-chiloe",
+      "hash": "42ab49a",
+      "push": "origin/main",
+      "contenido": "template alineado: octave -> octave-chiloe + md-simulation, bench, mcp-blender-full y unrealMCP (24 -> 28 servidores)"
+    },
+    {
       "repo": "githu",
       "hash": "PENDIENTE",
       "contenido": "ANALISIS_WIP.md, wip_audit_evidence.json, notes y knowledge con el estado final del ciclo 6"
     }
   ],
-  "commit_head": "3bf3141",
+  "config_deploy": {
+    "ruta": "/home/astrid/.config/Claude/claude_desktop_config.json",
+    "servidores_antes": 22,
+    "servidores_despues": 22,
+    "cambios": [
+      "out: octave (/home/astrid/octave-mcp/server.py, 3 tools) - duplicaba a octave-chiloe (13 tools)",
+      "in: md-simulation (mcp-ecosystem-chiloe/server.py, 8 tools)"
+    ],
+    "backup": "claude_desktop_config.json.bak-20261109-202525",
+    "sesion_claude_desktop": {
+      "estado": "relanzada (no estaba corriendo)",
+      "version": "4.23118.0 (claude-desktop-unofficial)",
+      "user_data_dir": "/home/astrid/.config/Claude",
+      "trampa": "el shell del workbench exporta XDG_CONFIG_HOME/XDG_DATA_HOME al runtime de la app: hay que lanzar Claude Desktop con XDG_CONFIG_HOME=/home/astrid/.config XDG_DATA_HOME=/home/astrid/.local/share para que lea el config real",
+      "servidores_con_handshake": 24,
+      "errores": [
+        "openbb-mcp: Server transport closed unexpectedly (requiere uvx con red)"
+      ],
+      "verificado": "mcp.log de la sesion nueva: md-simulation y octave-chiloe responden tools/list con result; 0 apariciones del 'octave' viejo"
+    }
+  },
+  "commit_head": "42ab49a",
   "commits_finales": [
     "8bfd6ba",
-    "3bf3141"
+    "3bf3141",
+    "d4cb051",
+    "42ab49a"
   ]
 }

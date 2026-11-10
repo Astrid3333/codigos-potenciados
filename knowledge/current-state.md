@@ -1,26 +1,34 @@
 # Current State
 
 - Goal: entregar análisis estáticos de repos vía VS Code MCP + MCP Inspector.
-- Stage: ciclo 6 (auditoría del **WIP del usuario** en `mcp-ecosystem-chiloe`) — **cerrado con 2
-  fixes aplicados y 3 decisiones pendientes del usuario**; ciclo 5 (análisis declarado vs. MCP
-  real) cerrado antes; ciclo 4 (Ternario) cerrado antes.
+- Stage: ciclo 6 (auditoría del **WIP del usuario** en `mcp-ecosystem-chiloe`) — **cerrado**:
+  12 hallazgos, 9 corregidos, 1 documentado, 1 cerrado a nivel de entorno, 1 pendiente de corrida de
+  humo; ciclo 5 (análisis declarado vs. MCP real) cerrado antes; ciclo 4 (Ternario) cerrado antes.
 - Current task: ciclo 6 cerrado. Auditoría del WIP (11 archivos modificados + 12 untracked) en
   `analysis/mcp-ecosystem-chiloe/ANALISIS_WIP.md` + `wip_audit_evidence.json`. Hallazgos:
   **C3-1 alta** (`formulas_tool.py` sin versionar → el repo publicado no arrancaba en clon
   limpio; **corregido** en `065ed73`), **C3-2 alta** (`jobs.py` con `shell=False`+`shlex.split`
-  rompe `run_gromacs`: el cmd lleva `&&`; **abierto, es WIP del usuario**), **C3-3 media**
-  (`gazebo_utils.py` sin versionar; **corregido** en `065ed73`), **C3-4 media** (COPASI no
-  instalado → 9 tools sin capacidad), C3-5 baja (`job_id` colisiona), C3-6 baja (6 F401
-  nuevos), C3-7 baja (`_octave_bin()` duplicado ×3), C3-8 info (cambio de contrato JSON en
-  `ejecutar_octave`), C3-9 info (clave TLS sin regla de ignore; **corregido**). Verificado bueno
-  del WIP: timeout+cleanup de `mcp_suelos`, `hilbert_tool` con `mkstemp`, `bolsa_mcp` con dato
-  real (AAPL 349,36), `gazebo-core` (`Gazebo Sim 8.15.0`), `copasi` degrada bien.
-- Next action: con el usuario — (a) elegir el fix de C3-2 (A: partir el pipeline GROMACS en dos
-  pasos y mantener `shell=False`; B: `shell=True` + `shlex.quote` por token), (b) decidir si
-  `copasi` sale de la config desplegada hasta instalar COPASI, (c) decidir si el `octave` viejo
-  (3 tools) se reemplaza por `octave-chiloe` (13) y si `bench`/`mcp-blender-full`/`unrealMCP`
-  entran al template, (d) decidir si se versiona su WIP completo. Pendiente known: los 3
-  servidores `uvx` que requieren red (`gdal`, `openbb-mcp`, `qgis`).
+  rompe `run_gromacs`: el cmd lleva `&&`; **corregido** en `8bfd6ba`, opción A), **C3-3 media**
+  (`gazebo_utils.py` sin versionar; **corregido** en `065ed73`), **C3-4 media** (COPASI: el bloqueo
+  era el entorno, no la instalación; **corregido** en `8bfd6ba` + config con el venv), C3-5 baja
+  (`job_id` colisiona; **corregido** en `d4cb051`), C3-6 baja (16 imports muertos; **corregido** en
+  `d4cb051`), C3-7 baja (`_octave_bin()` duplicado ×3; **corregido** en `d4cb051`), C3-8 info
+  (cambio de contrato JSON en `ejecutar_octave`; **documentado, no corregido**), C3-9 info (clave TLS
+  sin regla de ignore; **corregido**), C3-10/C3-11 media (log real de GROMACS y falso positivo de
+  `error`; **corregidos** en `8bfd6ba`), **C3-12 media** (`octave-chiloe` sano pero invisible para
+  Claude Desktop/Inspector por los `XDG_*` del runtime del workbench; **corregido a nivel máquina**:
+  registro en `~/.config/octave/api-v61/octave_packages` + paquetes en
+  `~/.local/share/octave/api-v61/packages/`). Verificado bueno del WIP: timeout+cleanup de
+  `mcp_suelos`, `hilbert_tool` con `mkstemp`, `bolsa_mcp` con dato real (AAPL 349,36),
+  `gazebo-core` (`Gazebo Sim 8.15.0`), `copasi` operativo con la solución analítica.
+- Next action: con el usuario — (a) una corrida de humo de `run_gromacs` **desde Claude Desktop**
+  (`md-simulation` ya está en la config; los fixes se verificaron por Inspector, no en la app),
+  (b) decidir si C3-8 (contrato JSON de `ejecutar_octave`) se ajusta o se documenta para los
+  consumidores, (c) pendiente known: los 3 servidores `uvx` que requieren red (`gdal`,
+  `openbb-mcp`, `qgis` — `openbb-mcp` es el único que efectivamente cae en la sesión real).
+  **Cerrado en este ciclo**: C3-2 (opción A), `copasi` con venv, `octave` viejo → `octave-chiloe`,
+  `bench`/`mcp-blender-full`/`unrealMCP`/`md-simulation` en las configs, y el WIP versionado
+  (`3bf3141`).
 - Ciclo 4 (cerrado): las 12 correcciones de Ternario están aplicadas y commiteadas en
   `Ternario-ancestral-sensores` (`master` @ `b361241`, fix de código en `544f633`, pusheado).
   Verificado: gcc `-m32 -Wall -Wextra` sobre las 45 TUs del kernel con 0 errores y con las
@@ -32,6 +40,28 @@
 
 ## Facts_changed
 
+- `mcp-ecosystem-chiloe` `origin/main` @ **`42ab49a`** (push `d4cb051..42ab49a`): `d4cb051` = C3-5
+  (`job_id` con sufijo `uuid4().hex[:6]`), C3-6 (16 imports muertos vía `ruff --select F401 --fix`;
+  `ruff check --select F401,F811,F841,E9` → *All checks passed!*) y C3-7 (`octave_runner.octave_bin()`
+  público, alias `_octave_bin`; `hilbert_tool.py` y `mcp_suelos.py` importan el compartido);
+  `42ab49a` = template con `octave` → `octave-chiloe` + `md-simulation`, `bench`, `mcp-blender-full`
+  y `unrealMCP` (24 → 28).
+- Config desplegada `~/.config/Claude/claude_desktop_config.json`: **22 servidores** — el `octave` viejo
+  (`/home/astrid/octave-mcp/server.py`, 3 tools) **salió** y entró `md-simulation`
+  (`mcp-ecosystem-chiloe/server.py`, 8 tools). Backup `claude_desktop_config.json.bak-20261109-202525`.
+  El template quedó en **28 servidores**.
+- **Paquetes de Octave visibles para toda la máquina** (fix C3-12, fuera del repo): registro en
+  `/home/astrid/.config/octave/api-v61/octave_packages` (copia con las rutas reescritas hacia
+  `~/.local/share/octave/api-v61/packages/`, con su `# length:` actualizado) y paquetes
+  `control-4.2.3`, `signal-1.4.8`, `symbolic-3.2.2` en `~/.local/share/octave/api-v61/packages/`.
+  El registro del runtime del workbench quedó intacto. `pkg install -local` de los paquetes de Debian
+  **no** funciona (exige `COPYING`/`DESCRIPTION` con `Categories`; `package control is empty`).
+- Claude Desktop 4.23118.0 (`claude-desktop-unofficial`) **no estaba corriendo**; relanzado con
+  `XDG_CONFIG_HOME=/home/astrid/.config` y `XDG_DATA_HOME=/home/astrid/.local/share` →
+  `--user-data-dir=/home/astrid/.config/Claude`. En `~/.config/Claude/logs/mcp.log` de la sesión
+  nueva: **24 servidores** con handshake y `tools/list` OK; `openbb-mcp` cae por falta de red.
+  **Trampa**: el shell del workbench exporta `XDG_CONFIG_HOME`/`XDG_DATA_HOME` al runtime de la app,
+  así que lanzar Claude Desktop desde ahí lo hace leer un config **vacío** en el runtime.
 - `mcp-ecosystem-chiloe`: la copia **canónica** es
   `/home/astrid/Documents/OpenScience/projects/githu/mcp-ecosystem-chiloe` (ahora `982ab0f`,
   pusheado a `origin/main`); la copia **obsoleta** `/home/astrid/mcp-ecosystem-chiloe`
@@ -45,11 +75,16 @@
   Se agregaron los 9 servidores propios del repo + `octave-chiloe` (13 tools) apuntando a la
   ruta canónica; **sin tocar** las 12 entradas previas. El `octave` viejo (3 tools,
   `/home/astrid/octave-mcp/server.py`) se conservó a propósito.
+  **Actualizado en este ciclo**: el `octave` viejo ya **salió** (duplicaba a `octave-chiloe`) y entró
+  `md-simulation` → sigue en **22 servidores**, pero con una fuente de verdad para Octave
+  (backup `claude_desktop_config.json.bak-20261109-202525`).
 - Template: 28 → **24** claves (podadas `mcp-registry`, `inkscape`, `krita`,
   `materials-project` — binarios inexistentes — y **2 claves duplicadas** `analisis-suelos` y
   `bolsa-mcp`, cuya versión vieja pisaba a la nueva). Rutas `npx` corregidas al node real
   (`/home/astrid/.local/share/pi-node/node-v22.23.2-linux-x64/bin/npx`): `filesystem` pasó de
   caído a 14 tools y `firecrawl-mcp` de caído a 26 tools.
+  **Actualizado en este ciclo**: 24 → **28** claves (`octave` → `octave-chiloe`, + `md-simulation`,
+  `bench`, `mcp-blender-full`, `unrealMCP`); commit `42ab49a`.
 - `microbio-env` y `physics-env`: scipy **arreglado** (1.18.1, reinstall `--only-binary=:all:`;
   los `.so` previos no eran ELF, magic `00 10 dd fc`). `microbio-mcp` = 6 tools y
   `physics-mcp` = 8 tools → ambos vuelven a responder en las dos configs.

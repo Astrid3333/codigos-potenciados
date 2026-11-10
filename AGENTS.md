@@ -42,6 +42,7 @@
 9. Close completed work instead of leaving it hanging.
 10. Capture one reusable lesson in each review.
 11. Compute measurements without truncation and classify findings by category before reporting counts.
+12. Reproduce an environment failure with the same env as the process that launches it (XDG_*, HOME, PATH, venv) before blaming the code.
 
 ## Self-Evolution Loop
 - At the end of each cycle, ask: what could be better?

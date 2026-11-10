@@ -5,9 +5,13 @@
 `/home/astrid/Documents/OpenScience/projects/githu/mcp-ecosystem-chiloe`
 **Método:** diff vs HEAD · ruff con atribución preexistente/introducido · grafo de imports vs `git ls-files` ·
 clon limpio de `origin/main` · MCP Inspector 2.13.0 (`tools/list` + `tools/call`, secuencial, cwd `/tmp`) ·
-A/B del pipeline GROMACS por MCP contra HEAD y contra el WIP.
-**Estado final:** `065ed73` (fix de versionado) → `8bfd6ba` (fixes propios) → `3bf3141` (WIP commiteado tal cual),
-los tres pusheados a `origin/main`.
+A/B del pipeline GROMACS por MCP contra HEAD y contra el WIP · sesión real de Claude Desktop (logs de
+`~/.config/Claude/logs/mcp.log`) · env mínimo (`env -i`) para separar código de entorno.
+**Estado final:** `065ed73` (fix de versionado) → `8bfd6ba` (fixes propios) → `3bf3141` (WIP commiteado tal cual)
+→ `d4cb051` (C3-5/C3-6/C3-7 corregidos) → `42ab49a` (template alineado), los cinco pusheados a `origin/main`.
+**Cierre operativo:** config desplegada y template alineados (22 → 22 con `md-simulation` en lugar del
+`octave` viejo; template 24 → 28), Claude Desktop relanzado con el config real y **24 servidores levantados**
+(23 con handshake OK; `openbb-mcp` cae por red).
 
 Evidencia cruda: `wip_audit_evidence.json`.
 
@@ -24,13 +28,14 @@ type hints, errores explícitos), pero trae **dos regresiones y una dependencia 
 | C3-2 | **alta** | `jobs.py` con `shell=False` + `shlex.split` **rompe `run_gromacs`** (el cmd lleva `&&`) | **Corregido** (`8bfd6ba`, opción A) |
 | C3-3 | media | `gazebo_utils.py` sin versionar → el WIP de los 3 servidores gazebo no es reproducible | **Corregido** (`065ed73`) |
 | C3-4 | media | COPASI: 9 tools expuestas pero el módulo no está instalado | **Corregido** (`8bfd6ba`) |
-| C3-5 | baja | Colisión de `job_id` (mismo motor+nombre en el mismo segundo) | Abierto (WIP commiteado tal cual) |
-| C3-6 | baja | 6 imports sin usar nuevos (3 en modificados, 3 en el archivo nuevo) | Abierto (WIP commiteado tal cual) |
-| C3-7 | baja | `_octave_bin()` duplicado en 3 archivos | Abierto (WIP commiteado tal cual) |
+| C3-5 | baja | Colisión de `job_id` (mismo motor+nombre en el mismo segundo) | **Corregido** (`d4cb051`) |
+| C3-6 | baja | 6 imports sin usar nuevos (3 en modificados, 3 en el archivo nuevo) | **Corregido** (`d4cb051`) |
+| C3-7 | baja | `_octave_bin()` duplicado en 3 archivos | **Corregido** (`d4cb051`) |
 | C3-8 | info | `mcp_suelos.ejecutar_octave` cambia su contrato (JSON en vez de stdout crudo) | A documentar |
 | C3-9 | info | Clave TLS privada sin trackear **y sin regla de ignore** | **Corregido** (`065ed73`) |
 | C3-10 | media | `parse_gromacs_log` leía el stdout del job; el log real de GROMACS 2018+ está en `topol.log` → `finished` y los bloques de energía nunca aparecían | **Corregido** (`8bfd6ba`) |
 | C3-11 | media | El detector de errores buscaba `error` a secas → la prosa del programa ("the error in the average pressure") disparaba un falso positivo en toda simulación exitosa | **Corregido** (`8bfd6ba`) |
+| C3-12 | media | `octave-chiloe` sano pero invisible para Claude Desktop/Inspector: los paquetes de Octave solo existían bajo el `XDG_*` del runtime del workbench | **Corregido** (entorno, fuera del repo — ver §7) |
 
 Además, el WIP es **mejor que HEAD en 10 puntos verificados** (§3), incluido el fix real de
 inyección de shell en `jobs.py` — que es justo lo que causa C3-2.
@@ -42,6 +47,8 @@ inyección de shell en `jobs.py` — que es justo lo que causa C3-2.
 | `065ed73` | versiona `formulas_tool.py` y `gazebo_utils.py` sin modificarlos; `.gitignore` para claves/certs |
 | `8bfd6ba` | fixes propios: GROMACS en dos etapas + log real + COPASI 4.48.311 operativo + template con el venv |
 | `3bf3141` | tu WIP commiteado byte a byte (`jobs.py`, `verificar_mcp.py` y 7 servidores-propios) |
+| `d4cb051` | C3-5 (`job_id` con `uuid4`), C3-6 (16 imports muertos) y C3-7 (`octave_bin()` centralizado) |
+| `42ab49a` | template: `octave` → `octave-chiloe` + `md-simulation`, `bench`, `mcp-blender-full`, `unrealMCP` |
 
 ---
 
@@ -236,14 +243,24 @@ recompilar deja el modelo en `NaN` ("Invalid state").
 
 ## 5. Hallazgos menores
 
-- **C3-5 colisión de `job_id`** — `create_job` usa `int(time.time())`; dos jobs `gromacs/mismo` en el mismo
-  segundo dan el mismo id (`gromacs_mismo_1794247259`) y el segundo pisa al primero. Sugerencia: `uuid4().hex[:8]`.
-- **C3-6 imports sin usar** — 6 F401 nuevos (`gazebo_entities`: `subprocess`, `shutil`; `gazebo_quantum`:
-  `euler_to_quaternion`; `formulas_tool`: `sympy.Symbol`, `sympy.nsimplify`, `sympy.sympify`) sobre 5
-  preexistentes (`gazebo_core`: `json`, `signal`; `gazebo_quantum`: `os`; `copasi`: `zip` sin `strict=`;
-  `btfloat`: `random` no criptográfico). `ruff --fix` resuelve los 9 auto-corregibles.
-- **C3-7 duplicación** — `_octave_bin()` quedó en `octave_runner.py`, `hilbert_tool.py` y `mcp_suelos.py`
-  con el mismo cuerpo. Como `octave_runner.py` ya está versionado, los otros dos podrían importarlo.
+- **C3-5 colisión de `job_id` — CORREGIDO (`d4cb051`).** `create_job` usaba `int(time.time())`; dos jobs
+  `gromacs/mismo` en el mismo segundo dan el mismo id (`gromacs_mismo_1794247259`) y el segundo pisa al
+  primero. Ahora el id lleva un sufijo aleatorio:
+  `job_id = f"{engine}_{job_name}_{int(time.time())}_{uuid.uuid4().hex[:6]}"` → 5 jobs consecutivos con
+  ids distintos. `server.py` solo propaga el `job_id` (no parsea el formato), así que no hubo que tocarlo.
+- **C3-6 imports sin usar — CORREGIDO (`d4cb051`).** Eran 6 F401 nuevos (`gazebo_entities`: `subprocess`,
+  `shutil`; `gazebo_quantum`: `euler_to_quaternion`; `formulas_tool`: `sympy.Symbol`, `sympy.nsimplify`,
+  `sympy.sympify`) sobre 5 preexistentes (`gazebo_core`: `json`, `signal`; `gazebo_quantum`: `os`;
+  `copasi`: `zip` sin `strict=`; `btfloat`: `random` no criptográfico). Se corrieron
+  `ruff check --select F401 --fix` sobre `git ls-files '*.py'` → **16 imports muertos eliminados** en 8
+  archivos. Verificación: `ruff check --select F401,F811,F841,E9` → *All checks passed!* y
+  `py_compile` OK en todos los `.py` versionados. Los avisos de bandit (`S311`, `B905`) siguen sin tocar:
+  son decisiones de diseño, no imports muertos.
+- **C3-7 duplicación — CORREGIDO (`d4cb051`).** `_octave_bin()` estaba en `octave_runner.py`,
+  `hilbert_tool.py` y `mcp_suelos.py` con el mismo cuerpo. Ahora `octave_runner.py` expone `octave_bin()`
+  (con alias `_octave_bin = octave_bin` para no romper imports previos) y los otros dos lo importan:
+  `from octave_runner import octave_bin`. El `import shutil` local de esos dos archivos se eliminó al
+  quedar sin uso.
 - **C3-8 contrato** — `mcp_suelos.ejecutar_octave` ahora devuelve JSON (`stdout`/`stderr`/`returncode`) donde
   antes devolvía stdout crudo. Cualquier consumidor que espere texto plano tiene que actualizarse.
 - **C3-9 clave TLS** — `mcp-ecosystem-chiloe.key` (clave privada de localhost, CN=localhost) estaba sin
@@ -274,8 +291,21 @@ recompilar deja el modelo en `NaN` ("Invalid state").
 
 **`3bf3141` → `origin/main` (tu WIP, byte a byte):** `jobs.py`, `verificar_mcp.py` y
 `servidores-propios/{bolsa_mcp.py, btfloat/btfloat.py, gazebo_core.py, gazebo_entities.py,
-gazebo_quantum.py, hilbert_tool.py, mcp_suelos.py}`. **Sin reescribir**: C3-5, C3-6 y C3-7 siguen
-pendientes y así quedan documentados.
+gazebo_quantum.py, hilbert_tool.py, mcp_suelos.py}`. C3-5, C3-6 y C3-7 quedaron abiertos en ese commit
+y se corrigieron después, en `d4cb051`.
+
+**`d4cb051` → `origin/main` (C3-5/C3-6/C3-7):**
+
+7. `jobs.py`: `import uuid` + sufijo `uuid4().hex[:6]` en `job_id` → 5 jobs consecutivos con ids únicos.
+8. `ruff --select F401 --fix` sobre los `.py` versionados → 16 imports muertos eliminados en
+   `brian2_mcp.py`, `formulas_tool.py`, `gazebo_core.py`, `gazebo_entities.py`, `gazebo_quantum.py`,
+   `goertzel_tool.py`, `sbtcvm_mcp_server.py`, `stiff_ode_tool.py`.
+9. `servidores-propios/octave_runner.py`: `octave_bin()` público (alias `_octave_bin` para back-compat);
+   `hilbert_tool.py` y `mcp_suelos.py` borran su copia local e importan el compartido.
+
+**`42ab49a` → `origin/main` (template alineado):** `claude_desktop_config.template.json` pasa de 24 a 28
+servidores: `octave` → `octave-chiloe` (el mismo `octave_mcp.py` del repo canónico, 13 tools) y se suman
+`md-simulation` (GROMACS/LAMMPS, 8 tools), `bench`, `mcp-blender-full` y `unrealMCP`.
 
 **Fuera de los commits** (untracked preexistentes, anteriores al ciclo de auditoría): `notes/`,
 `knowledge/`, `innovative_test.py`, `test_alternatives.py`, `test_final.py`, `test_tool.py` y
@@ -283,19 +313,74 @@ pendientes y así quedan documentados.
 regenerate_config.py}`.
 
 **Fuera del repo canónico pero tocados:** `/home/astrid/.config/Claude/claude_desktop_config.json`
-(entrada `copasi` apuntando al venv) — la config desplegada está fuera de git por diseño
-(`.gitignore`: `claude_desktop_config.json`).
+(entrada `copasi` apuntando al venv; y en este ciclo: `octave` viejo fuera, `md-simulation` adentro) —
+la config desplegada está fuera de git por diseño (`.gitignore`: `claude_desktop_config.json`).
+Backups de este ciclo: `claude_desktop_config.json.bak-20261109-202525` y
+`claude_desktop_config.template.json.bak-20261109-202525` (el segundo, movido a `/tmp/opencode/` para no
+dejar ruido en el repo).
 
 ---
 
-## 7. Limitaciones
+## 7. Cierre operativo — configs alineadas y Claude Desktop verificado
 
-- `md-simulation` **no está en la config desplegada**: los fixes de GROMACS se verificaron por MCP
-  directo (Inspector), no en producción. Si lo agregás a la config, probá `run_gromacs` una vez.
+### 7.1 Lo que cambió en las configs
+
+| | antes | después |
+|---|---|---|
+| config desplegada (`~/.config/Claude/claude_desktop_config.json`) | 22 servidores, con `octave` viejo (3 tools) y sin `md-simulation` | 22 servidores: `octave` viejo **fuera**, `md-simulation` **adentro** (8 tools) |
+| template (`claude_desktop_config.template.json`) | 24 servidores, con `octave` (nombre viejo) y sin `md-simulation` / `bench` / `mcp-blender-full` / `unrealMCP` | 28 servidores: `octave` → `octave-chiloe`, + `md-simulation`, `bench`, `mcp-blender-full`, `unrealMCP` |
+
+`octave-chiloe` y `octave` eran **el mismo script** del repo canónico (`servidores-propios/octave_mcp.py`,
+13 tools); el `octave` viejo era otro repo (`/home/astrid/octave-mcp/server.py`, 3 tools). Sacar el viejo
+deja una sola fuente de verdad.
+
+### 7.2 C3-12 — el server sano que no arrancaba: paquetes de Octave y `XDG_*`
+
+`octave-chiloe` levantaba y respondía `tools/list` en el shell del workbench, pero en Claude Desktop y en
+el Inspector fallaba con `package signal is not installed`. **El código estaba bien**: el registro de
+paquetes de Octave (`octave_packages`) vive en **`$XDG_CONFIG_HOME/octave/api-v61/`** y los paquetes
+instalados en **`$XDG_DATA_HOME/octave/api-v61/packages/`**. En el shell del workbench esas rutas apuntan
+al runtime de la app; Claude Desktop corre con las rutas XDG por defecto, donde solo estaba
+`control`/`signal`/`symbolic`… bajo el runtime.
+
+Fix (a nivel máquina, fuera del repo):
+
+1. se copiaron los paquetes a `/home/astrid/.local/share/octave/api-v61/packages/` (`control-4.2.3`,
+   `signal-1.4.8`, `symbolic-3.2.2`);
+2. se copió el registro a `/home/astrid/.config/octave/api-v61/octave_packages` y se reescribieron sus
+   rutas (`# length:` incluido) para que apunten a la copia estable del usuario y no al runtime del
+   workbench.
+
+Verificación: `env -i PATH=/usr/bin:/bin HOME=/home/astrid octave --eval "pkg load signal"` → OK, y
+`pkg list` muestra los 3 paquetes en la ruta estable. El registro del workbench quedó intacto: ahí sigue
+funcionando `pkg load signal` sin cambios.
+
+> Descartado: `pkg install -local` de los paquetes de Debian → Octave exige `COPYING`, `DESCRIPTION` con
+> `Categories` y da `package control is empty` con ese layout.
+
+### 7.3 Sesión real de Claude Desktop
+
+Claude Desktop (4.23118.0, `claude-desktop-unofficial`) **no estaba corriendo**; se relanzó apuntando al
+`userData` real (`--user-data-dir=/home/astrid/.config/Claude`). Ojo: el shell del workbench exporta
+`XDG_CONFIG_HOME`/`XDG_DATA_HOME` al runtime de la app, así que lanzarlo desde ahí lo hace leer un config
+**vacío** en el runtime — hay que lanzarlo con `XDG_CONFIG_HOME=/home/astrid/.config`
+`XDG_DATA_HOME=/home/astrid/.local/share`.
+
+Resultado en `~/.config/Claude/logs/mcp.log` (sesión nueva): **24 servidores** con handshake,
+`tools/list` y `prompts/list` respondiendo; `md-simulation` y `octave-chiloe` con `result` en
+`tools/list`; **cero** apariciones del `octave` viejo. Único error: `openbb-mcp` →
+*"Server transport closed unexpectedly"* (necesita red para `uvx`).
+
+---
+
+## 8. Limitaciones
+
 - El A/B de GROMACS usó un sistema mínimo de un átomo con `nsteps=0` para el pipeline de comandos, y un
   run de 200 pasos para la lectura del log: prueba el **pipeline y el parseo**, no la física de la
-  simulación.
-- `gdal`, `qgis` y `openbb-mcp` siguen sin poder verificarse offline (requieren `uvx` con red).
+  simulación. `md-simulation` ya está en la config desplegada, pero su `run_gromacs` no se volvió a correr
+  dentro de Claude Desktop (queda pendiente una corrida de humo desde la app).
+- `gdal`, `qgis` y `openbb-mcp` siguen sin poder verificarse offline (requieren `uvx` con red). En la
+  sesión real, `openbb-mcp` es el único que efectivamente cae.
 - COPASI, GROMACS y LAMMPS se verificaron con las versiones instaladas en esta máquina (COPASI 4.48.311,
   GROMACS 2023.3, Gazebo Sim 8.15.0); el comportamiento puede diferir en otros sistemas. Los fixes de
   COPASI son **específicos de 4.48** (`setReactionScheme`): en una versión anterior que sí tenga
@@ -303,6 +388,10 @@ regenerate_config.py}`.
 - La serie de COPASI que consume el ajuste depende del volumen del compartimento del modelo: el helper
   `_particulas_a_concentracion` lee ese volumen del modelo cargado, así que un modelo con compartimentos
   múltiples o unidades distintas necesita revisión.
-- La config desplegada tiene 22 servidores y hay **decisiones de ciclo 5 sin cerrar** (sustituir `octave`
-  viejo por `octave-chiloe`, si entran `bench` / `mcp-blender-full` / `unrealMCP`) y hace falta
-  **reiniciar Claude Desktop** para que los servidores nuevos/cambiados se carguen.
+- El fix de C3-12 es **de esta máquina**: si se recrea el runtime del workbench, el registro de Octave en
+  `~/.config/octave/` sigue apuntando a `~/.local/share/octave/api-v61/packages/` (copia propia), así que
+  no depende del runtime; pero cualquier reinstalación de paquetes de Octave hay que repetirla ahí.
+- Las decisiones de ciclo 5 quedan **cerradas**: `octave` viejo sustituido por `octave-chiloe`,
+  `bench` / `mcp-blender-full` / `unrealMCP` incorporados al template y `md-simulation` a las dos configs,
+  con Claude Desktop reiniciado y verificado.
+- C3-8 sigue **documentado, no corregido**: `mcp_suelos.ejecutar_octave` cambió su contrato a JSON.
