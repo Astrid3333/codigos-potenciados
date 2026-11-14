@@ -1,8 +1,8 @@
 /* hastings_test.c - Pruebas de precisión para Hastings (1955) y Remez
  *
- * Compara las implementaciones originales de Hastings con las refinadas
- * por el algoritmo de intercambio de Remez (empezando de Chebyshev),
- * midiendo el error máximo contra las funciones de long double.
+ * Compara las aproximaciones de Hastings con las refinadas por el algoritmo
+ * de intercambio de Remez, midiendo el error máximo contra libm, y verifica
+ * la corrección del signo de sin en toda la circunferencia.
  *
  * Compilar: gcc -std=c11 -O2 hastings.c hastings_test.c -o hastings_test -lm
  * Ejecutar: ./hastings_test
@@ -12,184 +12,280 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
 
+static int tests_run = 0;
+static int tests_failed = 0;
+
+static void check(const char *name, int ok, const char *detail) {
+    tests_run++;
+    if (!ok) tests_failed++;
+    printf("  [%s] %s%s%s\n", ok ? "OK" : "FAIL", name,
+           detail ? "  " : "", detail ? detail : "");
+}
+
 /* ---------- Funciones auxiliares de error máximo ---------- */
 
-static double max_err_sin(double a, double b, int n) {
+static double max_err_sin(double a, double b, int n, double *max_x) {
     double max_err = 0.0;
-    double max_x = 0.0;
+    *max_x = a;
     for (int i = 0; i <= n; i++) {
         double x = a + (double)i / (double)n * (b - a);
-        double ref = sin(x);
-        double got = hastings_sin(x).value;
-        double err = fabs(ref - got);
-        if (err > max_err) { max_err = err; max_x = x; }
+        double err = fabs(sin(x) - hastings_sin(x).value);
+        if (err > max_err) { max_err = err; *max_x = x; }
     }
-    printf("    x con error max: %.10f  error: %.3e\n", max_x, max_err);
     return max_err;
 }
 
 static double max_err_atan(double a, double b, int n) {
     double max_err = 0.0;
-    double max_x = 0.0;
     for (int i = 0; i <= n; i++) {
         double x = a + (double)i / (double)n * (b - a);
-        double ref = atan(x);
-        double got = hastings_atan(x).value;
-        double err = fabs(ref - got);
-        if (err > max_err) { max_err = err; max_x = x; }
+        double err = fabs(atan(x) - hastings_atan(x).value);
+        if (err > max_err) max_err = err;
     }
-    printf("    x con error max: %.10f  error: %.3e\n", max_x, max_err);
     return max_err;
 }
 
-static double max_err_exp(double a, double b, int n) {
+static double max_rel_err_exp(double a, double b, int n) {
     double max_err = 0.0;
-    double max_x = 0.0;
     for (int i = 0; i <= n; i++) {
         double x = a + (double)i / (double)n * (b - a);
-        double ref = exp(x);
-        double got = hastings_exp(x).value;
-        double err = fabs(ref - got);
-        if (err > max_err) { max_err = err; max_x = x; }
+        double err = fabs(exp(x) - hastings_exp(x).value) / exp(x);
+        if (err > max_err) max_err = err;
     }
-    printf("    x con error max: %.10f  error: %.3e\n", max_x, max_err);
     return max_err;
 }
 
 static double max_err_log1p(double a, double b, int n) {
     double max_err = 0.0;
-    double max_x = 0.0;
     for (int i = 0; i <= n; i++) {
         double x = a + (double)i / (double)n * (b - a);
-        double ref = log1p(x);
-        double got = hastings_log1p(x).value;
-        double err = fabs(ref - got);
-        if (err > max_err) { max_err = err; max_x = x; }
+        double err = fabs(log1p(x) - hastings_log1p(x).value);
+        if (err > max_err) max_err = err;
     }
-    printf("    x con error max: %.10f  error: %.3e\n", max_x, max_err);
     return max_err;
 }
 
-/* ---------- Pruebas ---------- */
+/* ---------- Pruebas de sin ---------- */
 
 static void test_sin(void) {
-    printf("=== sin(x) en [0, pi/2] ===\n");
-    printf("  Hastings original:  ");
-    double e1 = max_err_sin(0.0, M_PI/2.0, 2000);
+    printf("=== sin(x) ===\n");
+    double at_x = 0.0;
+    char buf[160];
 
-    remez_params_t rp = {0};
-    rp.f = sin;
-    rp.a = 0.0;
-    rp.b = M_PI/2.0;
-    rp.degree = 5;
-    rp.max_iterations = 200;
-    rp.tolerance = 1e-10;
+    double e_quarter = max_err_sin(0.0, M_PI / 2.0, 2000, &at_x);
+    snprintf(buf, sizeof buf, "error max en [0,pi/2] = %.3e (x=%.6f)", e_quarter, at_x);
+    check("sin error max en [0,pi/2] <= 1e-6", e_quarter <= 1e-6, buf);
 
-    if (remez_solve(&rp) == 0) {
-        printf("  Remez refinado:   ");
-        double e2 = remez_max_error(&rp, 2000);
-        printf("    error max: %.3e\n", e2);
-        printf("    mejora:    %.1fx\n", e1 / e2);
-        remez_free(&rp);
-    } else {
-        printf("  Remez: no convergió (%d iters)\n", rp.iterations);
+    /* Regresion: la reduccion a [0,pi/2] debe conservar el signo. */
+    double e_full = max_err_sin(0.0, 2.0 * M_PI, 4000, &at_x);
+    snprintf(buf, sizeof buf, "error max en [0,2pi] = %.3e (x=%.6f)", e_full, at_x);
+    check("sin error max en [0,2pi] <= 1e-6", e_full <= 1e-6, buf);
+
+    double e_neg = max_err_sin(-2.0 * M_PI, 0.0, 4000, &at_x);
+    snprintf(buf, sizeof buf, "error max en [-2pi,0] = %.3e", e_neg);
+    check("sin error max en [-2pi,0] <= 1e-6", e_neg <= 1e-6, buf);
+
+    /* Valores con signo en puntos clave. */
+    const double pts[] = {M_PI / 6.0, M_PI / 2.0, 2.0 * M_PI / 3.0, M_PI,
+                          3.0 * M_PI / 2.0, 5.0 * M_PI / 4.0, 2.0 * M_PI};
+    double worst = 0.0;
+    for (size_t i = 0; i < sizeof pts / sizeof pts[0]; i++) {
+        double err = fabs(sin(pts[i]) - hastings_sin(pts[i]).value);
+        if (err > worst) worst = err;
     }
+    snprintf(buf, sizeof buf, "error max en puntos clave = %.3e", worst);
+    check("sin en puntos clave (incluye 2pi/3 y 3pi/2) <= 1e-6", worst <= 1e-6, buf);
+
+    /* Simetria impar: sin(-x) = -sin(x). */
+    double asym = 0.0;
+    for (int i = 1; i <= 1000; i++) {
+        double x = 2.0 * M_PI * (double)i / 1000.0;
+        double err = fabs(hastings_sin(-x).value + hastings_sin(x).value);
+        if (err > asym) asym = err;
+    }
+    snprintf(buf, sizeof buf, "|sin(-x)+sin(x)| max = %.3e", asym);
+    check("sin es impar en [0,2pi] <= 1e-6", asym <= 1e-6, buf);
     printf("\n");
 }
 
+/* ---------- Pruebas de atan, exp y log1p ---------- */
+
 static void test_atan(void) {
-    printf("=== atan(x) en [0, 1] ===\n");
-    printf("  Hastings original:  ");
-    double e1 = max_err_atan(0.0, 1.0, 2000);
+    printf("=== atan(x) ===\n");
+    char buf[160];
+    double e = max_err_atan(0.0, 1.0, 2000);
+    snprintf(buf, sizeof buf, "error max en [0,1] = %.3e", e);
+    check("atan error max en [0,1] <= 1e-5", e <= 1e-5, buf);
 
-    remez_params_t rp = {0};
-    rp.f = atan;
-    rp.a = 0.0;
-    rp.b = 1.0;
-    rp.degree = 5;
-    rp.max_iterations = 200;
-    rp.tolerance = 1e-10;
+    double e4 = max_err_atan(0.05, 4.0, 4000);
+    snprintf(buf, sizeof buf, "error max en [0.05,4] = %.3e", e4);
+    check("atan error max en [0.05,4] <= 1e-5", e4 <= 1e-5, buf);
 
-    if (remez_solve(&rp) == 0) {
-        printf("  Remez refinado:   ");
-        double e2 = remez_max_error(&rp, 2000);
-        printf("    error max: %.3e\n", e2);
-        printf("    mejora:    %.1fx\n", e1 / e2);
-        remez_free(&rp);
-    } else {
-        printf("  Remez: no convergió (%d iters)\n", rp.iterations);
-    }
+    double e1 = fabs(atan(1.0) - hastings_atan(1.0).value);
+    snprintf(buf, sizeof buf, "error en atan(1) = %.3e", e1);
+    check("atan(1) = pi/4 con error <= 1e-12", e1 <= 1e-12, buf);
     printf("\n");
 }
 
 static void test_exp(void) {
-    printf("=== exp(x) en [0, 1] ===\n");
-    printf("  Hastings original:  ");
-    double e1 = max_err_exp(0.0, 1.0, 2000);
+    printf("=== exp(x) ===\n");
+    char buf[160];
+    double e = max_rel_err_exp(-5.0, 5.0, 4000);
+    snprintf(buf, sizeof buf, "error relativo max en [-5,5] = %.3e", e);
+    check("exp error relativo max en [-5,5] <= 1e-5", e <= 1e-5, buf);
 
-    remez_params_t rp = {0};
-    rp.f = exp;
-    rp.a = 0.0;
-    rp.b = 1.0;
-    rp.degree = 5;
-    rp.max_iterations = 200;
-    rp.tolerance = 1e-10;
+    double e0 = fabs(1.0 - hastings_exp(0.0).value);
+    snprintf(buf, sizeof buf, "error en exp(0) = %.3e", e0);
+    check("exp(0) = 1 con error <= 1e-12", e0 <= 1e-12, buf);
 
-    if (remez_solve(&rp) == 0) {
-        printf("  Remez refinado:   ");
-        double e2 = remez_max_error(&rp, 2000);
-        printf("    error max: %.3e\n", e2);
-        printf("    mejora:    %.1fx\n", e1 / e2);
-        remez_free(&rp);
-    } else {
-        printf("  Remez: no convergió (%d iters)\n", rp.iterations);
-    }
+    double e1 = fabs(exp(1.0) - hastings_exp(1.0).value);
+    snprintf(buf, sizeof buf, "error en exp(1) = %.3e", e1);
+    check("exp(1) con error <= 1e-6", e1 <= 1e-6, buf);
     printf("\n");
 }
 
 static void test_log1p(void) {
-    printf("=== log(1+x) en [0, 1] ===\n");
-    printf("  Hastings original:  ");
-    double e1 = max_err_log1p(0.0, 1.0, 2000);
+    printf("=== log1p(x) ===\n");
+    char buf[160];
+    double e = max_err_log1p(0.0, 1.0, 2000);
+    snprintf(buf, sizeof buf, "error max en [0,1] = %.3e", e);
+    check("log1p error max en [0,1] <= 1e-5", e <= 1e-5, buf);
 
-    remez_params_t rp = {0};
-    rp.f = log1p;
-    rp.a = 0.0;
-    rp.b = 1.0;
-    rp.degree = 5;
-    rp.max_iterations = 200;
-    rp.tolerance = 1e-10;
+    double e1 = fabs(log1p(1.0) - hastings_log1p(1.0).value);
+    snprintf(buf, sizeof buf, "error en log1p(1) = %.3e", e1);
+    check("log1p(1) = ln2 con error <= 1e-12", e1 <= 1e-12, buf);
+    printf("\n");
+}
 
-    if (remez_solve(&rp) == 0) {
-        printf("  Remez refinado:   ");
-        double e2 = remez_max_error(&rp, 2000);
-        printf("    error max: %.3e\n", e2);
-        printf("    mejora:    %.1fx\n", e1 / e2);
-        remez_free(&rp);
-    } else {
-        printf("  Remez: no convergió (%d iters)\n", rp.iterations);
+/* ---------- Pruebas de Remez ---------- */
+
+/* Polinomio de Taylor de grado 5 en x, para comparar con Remez de grado 5. */
+static double taylor5(int kind, double x) {
+    double x2 = x * x;
+    switch (kind) {
+        case 0: return x - x2 * x / 6.0 + x2 * x2 * x / 120.0;            /* sin */
+        case 1: return x - x2 * x / 3.0 + x2 * x2 * x / 5.0;              /* atan */
+        case 2: return 1.0 + x + x2 / 2.0 + x2 * x / 6.0 + x2 * x2 / 24.0
+                    + x2 * x2 * x / 120.0;                                /* exp */
+        default: return x - x2 / 2.0 + x2 * x / 3.0 - x2 * x2 / 4.0
+                     + x2 * x2 * x / 5.0;                                 /* log1p */
+    }
+}
+
+static double max_err_taylor5(int kind, double a, double b, int n) {
+    double max_err = 0.0;
+    for (int i = 0; i <= n; i++) {
+        double x = a + (double)i / (double)n * (b - a);
+        double err = 0.0;
+        switch (kind) {
+            case 0: err = fabs(sin(x) - taylor5(kind, x)); break;
+            case 1: err = fabs(atan(x) - taylor5(kind, x)); break;
+            case 2: err = fabs(exp(x) - taylor5(kind, x)); break;
+            default: err = fabs(log1p(x) - taylor5(kind, x)); break;
+        }
+        if (err > max_err) max_err = err;
+    }
+    return max_err;
+}
+
+static void test_remez(void) {
+    printf("=== Remez (minimax) ===\n");
+    char buf[240];
+    struct {
+        const char *name;
+        remez_func_t f;
+        double a, b;
+        int degree;      /* grado equivalente al polinomio de Hastings */
+        int kind;        /* 0 sin, 1 atan, 2 exp, 3 log1p */
+    } cases[] = {
+        {"sin", sin, 0.0, M_PI / 2.0, 11, 0},
+        {"atan", atan, 0.0, 1.0, 11, 1},
+        {"exp", exp, 0.0, 1.0, 6, 2},
+        {"log1p", log1p, 0.0, 1.0, 10, 3},
+    };
+
+    for (size_t c = 0; c < sizeof cases / sizeof cases[0]; c++) {
+        double taylor5_err = max_err_taylor5(cases[c].kind, cases[c].a, cases[c].b, 2000);
+        double hastings_err;
+        if (cases[c].kind == 0) {
+            double dummy = 0.0;
+            hastings_err = max_err_sin(cases[c].a, cases[c].b, 2000, &dummy);
+        } else if (cases[c].kind == 1) {
+            hastings_err = max_err_atan(cases[c].a, cases[c].b, 2000);
+        } else if (cases[c].kind == 2) {
+            hastings_err = max_rel_err_exp(cases[c].a, cases[c].b, 2000);
+        } else {
+            hastings_err = max_err_log1p(cases[c].a, cases[c].b, 2000);
+        }
+
+        /* 1) Remez de grado 5 contra Taylor de grado 5: comparacion justa. */
+        remez_params_t rp5 = {0};
+        rp5.f = cases[c].f;
+        rp5.a = cases[c].a;
+        rp5.b = cases[c].b;
+        rp5.degree = 5;
+        rp5.max_iterations = 200;
+        rp5.tolerance = 1e-12;
+        int rc5 = remez_solve(&rp5);
+        double err5 = remez_max_error(&rp5, 2000);
+        snprintf(buf, sizeof buf, "%s: rc=%d iter=%d Remez(5) = %.3e, Taylor(5) = %.3e",
+                 cases[c].name, rc5, rp5.iterations, err5, taylor5_err);
+        check("Remez converge", rc5 == 0, buf);
+        check("Remez(grado 5) mejora a Taylor(grado 5)", err5 < taylor5_err, buf);
+        remez_free(&rp5);
+
+        /* 2) Remez del grado equivalente contra el polinomio de Hastings. */
+        remez_params_t rpx = {0};
+        rpx.f = cases[c].f;
+        rpx.a = cases[c].a;
+        rpx.b = cases[c].b;
+        rpx.degree = cases[c].degree;
+        rpx.max_iterations = 200;
+        rpx.tolerance = 1e-12;
+        int rcx = remez_solve(&rpx);
+        double errx = remez_max_error(&rpx, 2000);
+        snprintf(buf, sizeof buf, "%s: rc=%d iter=%d Remez(%d) = %.3e, Hastings = %.3e",
+                 cases[c].name, rcx, rpx.iterations, cases[c].degree, errx, hastings_err);
+        check("Remez converge con el grado equivalente", rcx == 0, buf);
+        check("Remez(grado equivalente) no es peor que Hastings",
+              errx <= hastings_err * 1.10 + 1e-15, buf);
+
+        /* 3) Alternancia: el error debe cambiar de signo al menos m-1 veces. */
+        int m = rpx.degree + 2;
+        int signs = 0, last = 0;
+        for (int i = 0; i <= 4000; i++) {
+            double x = rpx.a + (rpx.b - rpx.a) * (double)i / 4000.0;
+            double e = cases[c].f(x) - remez_evaluate(&rpx, x);
+            int s = (e > 0.0) ? 1 : ((e < 0.0) ? -1 : 0);
+            if (s != 0 && s != last) { signs++; last = s; }
+        }
+        snprintf(buf, sizeof buf, "%s: cambios de signo del error = %d (minimo %d)",
+                 cases[c].name, signs, m - 1);
+        check("Remez produce alternancia del error", signs >= m - 1, buf);
+        remez_free(&rpx);
     }
     printf("\n");
 }
 
 int main(void) {
     printf("=================================================================\n");
-    printf("  PRUEBAS DE PRECISIÓN - Hastings (1955) vs Remez (con Chebyshev)\n");
+    printf("  PRUEBAS DE PRECISIÓN - Hastings (1955) vs Remez\n");
     printf("=================================================================\n\n");
 
     test_sin();
     test_atan();
     test_exp();
     test_log1p();
+    test_remez();
 
     printf("=================================================================\n");
-    printf("  FIN DE PRUEBAS\n");
+    printf("  %d/%d pruebas pasaron\n", tests_run - tests_failed, tests_run);
     printf("=================================================================\n");
-
-    return 0;
+    return tests_failed == 0 ? 0 : 1;
 }

@@ -1,36 +1,16 @@
-/* hastings.c - Implementaciones del algoritmo de Goertzel con tres formulaciones
+/* hastings.c - Polinomios de Hastings (1955) para funciones trascendentales
  *
- * Implementa las tres formulaciones del algoritmo de Goertzel:
- *   - K = 2*cos(w)       (forma original, zona media)
- *   - α = 4*sin^2(w/2)   (forma para ω pequeño, cerca de 0)
- *   - β = 4*cos^2(w/2)   (espejo para ω cerca de π)
- *   - híbrida: α si w < π/2, β si w >= π/2
+ * Aproximaciones polinómicas de grado 5 con reduccion de argumento:
+ *   - sin(x)   sobre [0, pi/2], reduccion por simetria sin(pi-x)=sin(x)
+ *   - atan(x)  con identidad atan(x) = pi/4 + atan((x-1)/(x+1))
+ *   - exp(x)   con descomposicion x = k*ln2 + r y series de Taylor
+ *   - log1p(x) con identidad log1p(x) = ln2 + log1p((x-1)/2)
  *
- * Incluye una FFT radix-2 simple para comparación.
+ * Incluye refinamiento por el algoritmo de intercambio de Remez para
+ * obtener el polinomio de minimax (error maximo minimo) en un intervalo.
  *
- * Referencia experimental: N = 131072, ruido gaussiano, referencia long double.
- *   bin 1  (ω=4.8e-05):  K=4.8e-08,  α=1.7e-13, híbrida=1.7e-13
- *   bin 10 (w=4.8e-04):  K=2.3e-09,  α=5.4e-15, híbrida=5.4e-15
- *   bin 1000 (w=4.8e-02): K=4.9e-12,  α=2.7e-14, híbrida=2.7e-14
- *   π/2 (bin 32768):     K=3.5e-15,  α=6.4e-13, híbrida=6.1e-14
- *   π   (k=65535):       K=4.3e-08,  α=2.4e-07, híbrida=2.5e-13
- *
- * Recomendación práctica:
- *   α  para ω < π/4
- *   K  para π/4 ≤ ω ≤ 3π/4
- *   β  para ω > 3π/4
- *
- * Benchmarks (C, -O2, sin -ffast-math, N = 131072):
- *   Goertzel K  0.334 ms  (1.00x)
- *   Goertzel α  0.341 ms  (1.02x)
- *   Goertzel β  0.410 ms  (1.23x)
- *   FFT radix-2 4.57 ms   (~14 bins de Goertzel)
- *
- * Benchmarks (Octave FFTW, N = 131072, k = 1000):
- *   FFT (FFTW)            1.505 ms  1x
- *   Goertzel for 1 bin    555.8 ms  369x
- *   Goertzel filter       2.380 ms  1.58x
- *   Bin directo (sum)     6.477 ms  4.30x
+ * Referencia: Hastings, C. et al. (1955). Approximations for Digital
+ * Computers. Princeton University Press. Remez, E. Ya. (1934).
  */
 
 #include "hastings.h"
@@ -111,8 +91,11 @@ hastings_result_t hastings_sin(double x) {
     int k = (int)(x / (2.0 * M_PI));
     x = x - k * 2.0 * M_PI;
 
-    if (x > M_PI) { x = M_PI - x; sign = -sign; }
-    if (x > M_PI / 2.0) { x = M_PI - x; sign = -sign; }
+    /* Reducción a [0, pi/2]. sin(pi - x) = sin(x) conserva el signo;
+     * sin(2pi - x) = -sin(x) lo invierte. El unico cambio de signo
+     * legitimo es el del argumento negativo original. */
+    if (x > M_PI) { x = 2.0 * M_PI - x; sign = -sign; }
+    if (x > M_PI / 2.0) { x = M_PI - x; }
 
     double result = x * hastings_eval_poly(hastings_sin_coeffs, 6, x * x);
     return (hastings_result_t){sign * result, 1.0e-5, 5};
@@ -406,26 +389,30 @@ int remez_solve(remez_params_t *p) {
         for (int j = 0; j < n; j++) coeffs[j] = b[j];
         E = b[n];
 
-        /* Muestrear para encontrar extremos locales */
+        /* Muestrear el error para localizar los extremos alternantes */
         for (int i = 0; i < ns; i++) {
-            sx[i] = p->a + (double)i / (double)(ns - 1) * (p->b - p->a);
+            sx[i] = p->a + (double)i / (ns - 1) * (p->b - p->a);
             sy[i] = p->f(sx[i]);
             se[i] = sy[i] - hastings_eval_poly(coeffs, n, sx[i]);
         }
 
-        /* Encontrar extremos locales + extremos del intervalo */
+        /* Candidatos en orden creciente: extremos del intervalo y puntos
+         * donde |error| es localmente maximo. El intercambio de Remez
+         * exige alternancia en ese orden, no solo signos alternados. */
         int ne = 0;
+        ext_x[ne] = p->a; ext_y[ne] = p->f(p->a);
+        ext_e[ne] = ext_y[ne] - hastings_eval_poly(coeffs, n, p->a); ne++;
         for (int i = 1; i < ns - 1; i++) {
-            if ((se[i] > se[i-1] && se[i] > se[i+1]) ||
-                (se[i] < se[i-1] && se[i] < se[i+1])) {
+            double e0 = fabs(se[i-1]), e1 = fabs(se[i]), e2 = fabs(se[i+1]);
+            if (e1 >= e0 && e1 >= e2) {
                 ext_x[ne] = sx[i]; ext_y[ne] = sy[i]; ext_e[ne] = se[i];
                 ne++;
             }
         }
-        ext_x[ne] = p->a; ext_y[ne] = p->f(p->a); ext_e[ne] = p->f(p->a) - hastings_eval_poly(coeffs, n, p->a); ne++;
-        ext_x[ne] = p->b; ext_y[ne] = p->f(p->b); ext_e[ne] = p->f(p->b) - hastings_eval_poly(coeffs, n, p->b); ne++;
+        ext_x[ne] = p->b; ext_y[ne] = p->f(p->b);
+        ext_e[ne] = ext_y[ne] - hastings_eval_poly(coeffs, n, p->b); ne++;
 
-        /* Seleccionar m puntos con signos alternantes */
+        /* Seleccionar m puntos con signos alternados, en orden creciente */
         int sel = 0;
         int last_sign = 0;
         for (int i = 0; i < ne && sel < m; i++) {
@@ -438,19 +425,18 @@ int remez_solve(remez_params_t *p) {
             }
         }
 
-        /* Si no hay suficientes alternantes, usar puntos equiespaciados
-         * como fallback para la siguiente iteración. Cuando sel >= m - 1
-         * ya hay suficientes alternantes para verificar convergencia. */
+        /* Si no hay suficientes alternantes, volver a los puntos
+         * equiespaciados y seguir iterando: la alternancia puede
+         * aparecer en la ronda siguiente. */
         if (sel < m) {
             for (int i = 0; i < m; i++) {
                 x[i] = p->a + (double)i / (double)(m - 1) * (p->b - p->a);
                 y[i] = p->f(x[i]);
             }
-            if (sel < m - 1) continue;
         }
 
         /* Verificar convergencia: el error de minimax |E| se estabiliza */
-        if (iter > 0 && fabs(E - E_prev) < p->tolerance * fmax(fabs(E), 1e-300)) {
+        if (iter > 1 && fabs(E - E_prev) < p->tolerance * fmax(fabs(E), 1e-300)) {
             converged = 1;
             break;
         }
@@ -458,7 +444,12 @@ int remez_solve(remez_params_t *p) {
     }
 
     p->coeffs = coeffs;
+    /* Error maximo real medido sobre la malla de muestreo, no solo |E| */
     p->max_error = fabs(E);
+    for (int i = 0; i < ns; i++) {
+        double err = fabs(sy[i] - hastings_eval_poly(coeffs, n, sx[i]));
+        if (err > p->max_error) p->max_error = err;
+    }
     p->converged = converged;
     p->iterations = iterations;
 

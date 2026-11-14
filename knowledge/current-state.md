@@ -9,15 +9,17 @@
   Los módulos nuevos compilan con **0 warnings** bajo
   `-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion -Wcast-qual
   -Wstrict-prototypes -Wmissing-prototypes -Werror` y pasan sus tests.
-- Current task: cierre de docs del ciclo en `githu` (README del módulo `goertzel`, README de
-  `pi_ancestral`, README raíz, `tools/gen_compile_commands.py`, `.vscode/c_cpp_properties.json`,
-  notas y memoria) + commit local. Los commits `78415f7` (canónica `mcp-ecosystem-chiloe`) y
-  `94684a6` (`githu`) están **locales, sin push** (falta OK explícito del usuario).
-- Next action: (a) crear en `lcl-bench` los 4 registries (`cordic`, `hastings`, `lcg_lehmer`,
-  `matematica_ancestral`) con evaluadores Octave + Python y dispatch por `family`, y agregarlos a
-  `_load_entries()` de `mcp/bench_server.py`; (b) con el usuario: OK para pushear `78415f7` /
-  `94684a6`; (c) reiniciar Claude Desktop para que `analisis-suelos` tome el `mcp_suelos.py` nuevo;
-  (d) pendiente known: los 3 servidores `uvx` que requieren red (`gdal`, `openbb-mcp`, `qgis`).
+- Current task: ciclo 8 — fix de `hastings` (signo de `sin` y Remez) **aplicado y verificado**
+  (33/33, 0 warnings); el hueco **4a** de `lcl-bench` está a medias (4 registries JSON +
+  evaluadores Octave de `cordic` y `hastings`). Los commits `78415f7` (canónica
+  `mcp-ecosystem-chiloe`), `94684a6` y `943ea95` (`githu`) están **locales, sin push** (falta OK
+  explícito del usuario). `lcl-bench` está **todo pusheado** (`master == origin/master`).
+- Next action: (a) terminar el 4a en `lcl-bench`: evaluadores Octave de `lcg` y `ancestral`, los
+  4 evaluadores Python, dispatch por `family` en `octave/registry_run.m` y `python/registry_run.py`,
+  y sumar los 4 registries a `_load_entries()` de `mcp/bench_server.py`; (b) con el usuario: OK para
+  pushear `78415f7` / `94684a6` / `943ea95`; (c) reiniciar Claude Desktop para que
+  `analisis-suelos` tome el `mcp_suelos.py` nuevo; (d) pendiente known: los 3 servidores `uvx` que
+  requieren red (`gdal`, `openbb-mcp`, `qgis`).
 - Ciclo 6 (cerrado antes): las 12 correcciones de Ternario están aplicadas y commiteadas en
   `Ternario-ancestral-sensores` (`master` @ `b361241`, fix de código en `544f633`, pusheado).
   Verificado: gcc `-m32 -Wall -Wextra` sobre las 45 TUs del kernel con 0 errores y con las
@@ -29,6 +31,20 @@
 
 ## Facts_changed
 
+- `hastings` (fix del 2026-11-14): `hastings_sin` reducía a [0, π/2] con `x = π - x` **y**
+  `sign = -sign`, pero `sin(π - x) = sin(x)` conserva el signo → devolvía −0.866 para
+  `sin(2π/3)` y +1 para `sin(3π/2)` (error máx 2.0 en [0, 2π]). Reducción correcta:
+  `x > π → x = 2π - x` (signo invertido), `x > π/2 → x = π - x` (signo conservado). Error máx
+  ahora **5.626e-08** en [0, 2π] y [−2π, 0]. El Remez seleccionaba los extremos alternantes
+  **sin ordenar** (extremos del intervalo al final) y buscaba máximos con signo en vez de
+  `|error|` → no convergiu a minimax; ahora ordena candidatos y alterna en orden creciente,
+  exige ≥3 rondas y reporta el error real medido. Test del módulo: **33/33**.
+- **Grado de los polinomios de Hastings**: `sin` y `atan` usan `x·P₅(x²)` = **grado 11 en x**;
+  `exp` es grado 6 (`1 + x·P₅(x)`) y `log1p` grado 10 (`x·P₉(x)`). Un Remez de grado 5 no
+  puede mejorarlos (minimax de sin en [0, π/2] con grado 5 = 7.71e-06 según `mpmath.chebyfit`,
+  contra 5.63e-08 de Hastings). Con el grado equivalente el Remez da: sin **3.99e-14**,
+  atan 1.71e-09, log1p 7.09e-10, exp 4.03e-08 (vs 3.89e-08 de Hastings: el Vandermonde en
+  base monomial pierde precisión).
 - Módulos nuevos en `codigos-potenciados/` (verificados el 2026-11-14, 0 warnings con flags
   estrictos y tests en verde): `pi_ancestral/` (**30/30**), `abacus_vedic/` (**29/29**),
   `middle_square/` (**17/17**) y `goertzel/` + `goertzel_vs_fft_test.c` (**24/24**).

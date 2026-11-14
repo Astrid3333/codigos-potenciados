@@ -1,14 +1,18 @@
-/* hastings.h - Cabecera del módulo Hastings (1955) + Remez/Chebyshev
+/* hastings.h - Cabecera del módulo Hastings (1955) + Remez
  *
  * Define los tipos de datos y declara las funciones para las aproximaciones
  * polinómicas de funciones elementales (sin, atan, exp, log1p) usando:
  *   - Coeficientes originales de Hastings (grado 5)
- * *   - Refinamiento mediante algoritmo de intercambio de Remez,
- *     empezando del polinomio de Chebyshev.
+ *   - Refinamiento mediante algoritmo de intercambio de Remez
+ *
+ * Ojo con los grados: el polinomio de Hastings para sin y atan tiene la forma
+ * x*P(x^2) con P de grado 5, es decir grado 11 en x. Para comparar con
+ * Remez hay que usar el grado equivalente (11 para sin y atan, 6 para exp,
+ * 10 para log1p); un Remez de grado 5 no puede mejorar al de Hastings.
  *
  * Cada función retornable devuelve hastings_result_t con:
  *   value   - valor aproximado
- *   error   - error máximo estimado
+ *   error   - cota de error declarada para el polinomio usado
  *   degree  - grado del polinomio usado
  */
 
