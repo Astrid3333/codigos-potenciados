@@ -4,22 +4,27 @@
   (`githu/codigos-potenciados/`): (1) π por polígonos, (2) ábaco/suanpan + multiplicación védica,
   (3) middle-square de 4 dígitos, (4) entradas de registry para `CORDIC` / `Hastings` /
   `LCG-Lehmer` / `matematica_ancestral` + versión C de `goertzel_vs_fft`.
-- Stage: **3 de 4 huecos cerrados y verificados**; el 4b (`goertzel_vs_fft` en C, con FFT radix-2
-  real) está implementado y documentado; falta el **4a** (los 4 registries nuevos en `lcl-bench`).
+- Stage: **los 4 huecos cerrados y verificados**. El 4a (los 4 registries nuevos en `lcl-bench`)
+  quedó commiteado localmente como `d92fcb4`: `cordic`, `hastings`, `lcg_lehmer` y
+  `matematica_ancestral`, con evaluadores Octave (`octave/registry_eval_*.m`) y Python
+  (`python/registry_run.py`), dispatch por `family` y los 4 archivos en
+  `mcp/bench_server.py::_load_entries()`. **Octave 32/32 PASS y Python 32/32 PASS** con valores
+  idénticos entre lenguajes; `hub_compare.py` exit 0 (las entradas nuevas salen
+  `MISSING in fortran` porque el runner Fortran solo carga 3 registries).
+  El 4b (`goertzel_vs_fft` en C, con FFT radix-2 real) también está implementado y documentado.
   Los módulos nuevos compilan con **0 warnings** bajo
   `-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion -Wcast-qual
   -Wstrict-prototypes -Wmissing-prototypes -Werror` y pasan sus tests.
-- Current task: ciclo 8 — fix de `hastings` (signo de `sin` y Remez) **aplicado y verificado**
-  (33/33, 0 warnings); el hueco **4a** de `lcl-bench` está a medias (4 registries JSON +
-  evaluadores Octave de `cordic` y `hastings`). Los commits `78415f7` (canónica
-  `mcp-ecosystem-chiloe`), `94684a6` y `943ea95` (`githu`) están **locales, sin push** (falta OK
-  explícito del usuario). `lcl-bench` está **todo pusheado** (`master == origin/master`).
-- Next action: (a) terminar el 4a en `lcl-bench`: evaluadores Octave de `lcg` y `ancestral`, los
-  4 evaluadores Python, dispatch por `family` en `octave/registry_run.m` y `python/registry_run.py`,
-  y sumar los 4 registries a `_load_entries()` de `mcp/bench_server.py`; (b) con el usuario: OK para
-  pushear `78415f7` / `94684a6` / `943ea95`; (c) reiniciar Claude Desktop para que
-  `analisis-suelos` tome el `mcp_suelos.py` nuevo; (d) pendiente known: los 3 servidores `uvx` que
-  requieren red (`gdal`, `openbb-mcp`, `qgis`).
+- Current task: ciclo 8 cerrado — fix de `hastings` (signo de `sin` y Remez) **aplicado y
+  verificado** (33/33, 0 warnings, commit `faf8f37`) y hueco 4a **cerrado** en `lcl-bench`
+  (`d92fcb4`). Los commits `78415f7` (canónica `mcp-ecosystem-chiloe`), `94684a6`, `943ea95`
+  y `faf8f37` (`githu`) y `d92fcb4` (`lcl-bench`) están **locales, sin push** (falta OK
+  explícito del usuario).
+- Next action: (a) con el usuario: OK para pushear `78415f7` / `94684a6` / `943ea95` /
+  `faf8f37` / `d92fcb4`; (b) opcional: evaluadores Fortran para las 4 entradas nuevas (el hub
+  tolera `MISSING`); (c) reiniciar Claude Desktop para que `analisis-suelos` tome el
+  `mcp_suelos.py` nuevo; (d) pendiente known: los 3 servidores `uvx` que requieren red
+  (`gdal`, `openbb-mcp`, `qgis`).
 - Ciclo 6 (cerrado antes): las 12 correcciones de Ternario están aplicadas y commiteadas en
   `Ternario-ancestral-sensores` (`master` @ `b361241`, fix de código en `544f633`, pusheado).
   Verificado: gcc `-m32 -Wall -Wextra` sobre las 45 TUs del kernel con 0 errores y con las
