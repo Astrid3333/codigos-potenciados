@@ -24,7 +24,8 @@
 
 Tres capas de problemas, todas con evidencia ejecutada (no solo lectura de código):
 
-1. **El `octave` que el usuario tiene desplegado no es el del repo.** El desplegado expone **3 tools**; el del repo expone **13**; la copia obsoleta del template expone **1**.
+1. **El `octave` que el usuario tiene desplegado no es el del repo.** El desplegado (`/home/astrid/octave-mcp/server.py`) expone **3 meta-tools** (`list_tools`, `get_tool_schema`, `call_tool`) que actúan de **gateway sobre un catálogo de 377 tools de dominio**; el del repo (`octave_mcp.py`) expone **13 tools nativas**; la copia obsoleta del template expone **1**.
+   > **Corrección del ciclo 6 (2026-11-13):** el conteo "3 tools" es el de la *superficie MCP*, no el del catálogo. Como `octave-mcp` es un agregador, quitarlo de la config no quitaba una duplicación: quitaba el acceso a **377 tools**. La entrada `octave` se restauró (ver §8). `octave-chiloe` sigue siendo útil como server nativo sin indirección.
 2. **19 de los 28 servidores del template no están en la config desplegada** — incluidos 11 servidores propios del repo (gazebo×3, brian2, copasi, neuron, sbtcvm, analisis-suelos, bolsa-mcp, solver…).
 3. **Dos venvs con scipy roto** (`microbio-env`, `physics-env`): sus `.so` no son ELF → ambos servidores MCP mueren al arrancar, y aparecen en **ambas** configs.
 4. **Dos bugs de código en el WIP sin commitear**: `verificar_mcp.py` quedó sin `import os` (→ `NameError` al arrancar) y `octave_mcp.py` responde `"id": null` en los errores (→ el cliente cuelga 60 s en vez de recibir el error).
@@ -97,7 +98,7 @@ Evidencia completa (argv, cantidad de tools, segundos, stderr): `mcp_inspector_t
 | github | ok | 44 | 0.5 | |
 | mcp-blender-full | ok | **218** | 1.3 | no está en el template |
 | **microbio-mcp** | **caído** | 0 | 1.3 | scipy roto (ver B2) |
-| **octave** | ok | **3** | 3.7 | es `/home/astrid/octave-mcp/server.py` (214 módulos, **3 tools expuestas**) |
+| **octave** | ok | **3** (+377 detrás) | 3.7 | es `/home/astrid/octave-mcp/server.py`: **gateway** con 3 meta-tools (`list_tools`/`get_tool_schema`/`call_tool`) sobre un catálogo de **377 tools de dominio** |
 | **openbb-mcp** | **caído** | 0 | 17.5 | timeout uvx |
 | **physics-mcp** | **caído** | 0 | 1.3 | scipy roto (ver B2) |
 | psyche-mcp | ok | 10 | 2.8 | |
@@ -108,7 +109,7 @@ Evidencia completa (argv, cantidad de tools, segundos, stderr): `mcp_inspector_t
 - **En el template y NO desplegados (19):** analisis-suelos, bolsa-mcp, brian2-mcp, copasi, fetch, filesystem, firecrawl-mcp, gazebo-core, gazebo-entities, gazebo-quantum, gdal, inkscape, krita, materials-project, mcp-registry, neuron-mcp, qgis, sbtcvm, solvespace.
 - **Desplegados y NO en el template (3):** bench, mcp-blender-full, unrealMCP.
 - **En ambos (9):** biosim-mcp, blender, freecad, github, microbio-mcp, octave, openbb-mcp, physics-mcp, psyche-mcp.
-- De los 9 comunes, **3 están caídos en ambas** (microbio, openbb, physics) y **1 expone un número distinto de tools** (freecad 59 vs 17; octave 3 vs 13).
+- De los 9 comunes, **3 están caídos en ambas** (microbio, openbb, physics) y **1 expone un número distinto de tools en la superficie MCP** (freecad 59 vs 17; octave 3 meta-tools vs 13 nativas — pero `octave` esconde **377 tools de dominio** detrás de `call_tool`, así que no es un duplicado: es un catálogo más amplio con indirección).
 
 ---
 
@@ -168,7 +169,9 @@ El desplegado (`/home/astrid/octave-mcp/server.py`) **solo arranca con su propio
 | `python3` (sistema) | `ModuleNotFoundError: No module named 'ocas'` (`server.py:92` → `ocas_symbolic_tool.py:24`) — muere al arrancar |
 | `/home/astrid/octave-mcp/.venv/bin/python` | handshake OK en **5.6 s** |
 
-Claude Desktop (`claude-desktop-unofficial`, PID 15869) lo lanza con el venv → **funciona**, pero es el server viejo de otro repo con **3 tools** (el del repo expone **13**; la copia obsoleta, **1**). El WIP del template ya apunta al `octave_mcp.py` del repo — pero a la **copia obsoleta** (`/home/astrid/mcp-ecosystem-chiloe/…`, 7 commits atrás, 1 tool) → el arreglo apunta al lugar equivocado.
+Claude Desktop (`claude-desktop-unofficial`, PID 15869) lo lanza con el venv → **funciona**. Es un **gateway agregador**: su superficie MCP son 3 meta-tools (`list_tools`, `get_tool_schema`, `call_tool`) y el catálogo real que expone `list_tools` es de **377 tools de dominio** (finanzas, bio, física, geometría, Octave…), no de 3. El repo canónico expone **13 tools nativas** (`octave_mcp.py`) y la copia obsoleta, **1**: los tres son superficies distintas, no tres duplicados del mismo server.
+
+> **Corrección (2026-11-13):** el WIP del template había **renombrado** la entrada `octave` → `octave-chiloe`, dejando al gateway del usuario fuera de la config (regresión: se perdían 377 tools). Hoy conviven las tres entradas sin ambigüedad: `octave` (gateway, venv propio), `octave-chiloe` (nativo, canónico) y `md-simulation` (`server.py` del repo). El arreglo B4 (apuntar a la copia canónica) aplica a las entradas **propias del repo**, no al gateway.
 
 **B2 — alto · scipy roto en `microbio-env` y `physics-env`**
 
@@ -212,7 +215,7 @@ Incluye los 11 propios del repo. El template describe un ecosistema que el usuar
 | Ítem | Estado en el WIP | Pendiente |
 |---|---|---|
 | `verificar_mcp.py` sin `import os` | **introduce** el bug (A1) | reponer `import os` |
-| `octave` → repo | ✅ pero apunta a la **copia obsoleta** (B4) | apuntar a la canónica |
+| `octave` → repo | ⚠️ el WIP **renombró** la entrada del gateway del usuario a `octave-chiloe` (regresión: perdía 377 tools) | corregido 2026-11-13: `octave` (gateway) + `octave-chiloe` (nativo canónico) conviven |
 | `bolsa_mcp` import FastMCP | ✅ | — |
 | `octave_mcp` binario por `PATH` | ✅ (`_octave_bin()`) | — |
 | `id: null` en errores (A2) | ❌ no tocado | propagar `req_id` |
@@ -228,7 +231,7 @@ Incluye los 11 propios del repo. El template describe un ecosistema que el usuar
 1. **P0 — una línea:** `import os` en `verificar_mcp.py` (HEAD lo tenía; el WIP lo borró).
 2. **P0 — una línea:** en `octave_mcp.py:210`, responder con el `id` de la petición en vez de `None`.
 3. **P0 — entorno:** `pip install --force-reinstall scipy` en `/home/astrid/microbio-env` y `/home/astrid/physics-env` (los `.so` no son ELF).
-4. **P1 — rutas:** en `claude_desktop_config.template.json`, apuntar `octave` a la copia canónica; podar las entradas sin binario (filesystem/firecrawl/krita/materials-project/mcp-registry/inkscape) o instalar lo que falte.
+4. **P1 — rutas:** en `claude_desktop_config.template.json`, apuntar las entradas **propias del repo** a la copia canónica (no tocar `octave`, que es el gateway del usuario en `/home/astrid/octave-mcp`, con su venv); podar las entradas sin binario (filesystem/firecrawl/krita/materials-project/mcp-registry/inkscape) o instalar lo que falte.
 5. **P1 — imports:** `from octave_mcp import run_octave` en `middle_square_weyl_tool.py:67` y `ancestral_octave_tool.py:533`.
 6. **P1 — cobertura:** decidir si la config desplegada debe incorporar los 11 servidores propios del repo (hoy 0 de 11 disponibles) y si `bench`, `mcp-blender-full` y `unrealMCP` deben entrar al template.
 7. **P2 — robustez:** validar `modulus >= 10000` en `middle_square_weyl` y revisar el timeout de 30 s de `run_octave` frente al costo real del default.

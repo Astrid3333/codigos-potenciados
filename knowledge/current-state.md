@@ -71,10 +71,17 @@
   público, alias `_octave_bin`; `hilbert_tool.py` y `mcp_suelos.py` importan el compartido);
   `42ab49a` = template con `octave` → `octave-chiloe` + `md-simulation`, `bench`, `mcp-blender-full`
   y `unrealMCP` (24 → 28).
-- Config desplegada `~/.config/Claude/claude_desktop_config.json`: **22 servidores** — el `octave` viejo
-  (`/home/astrid/octave-mcp/server.py`, 3 tools) **salió** y entró `md-simulation`
-  (`mcp-ecosystem-chiloe/server.py`, 8 tools). Backup `claude_desktop_config.json.bak-20261109-202525`.
-  El template quedó en **28 servidores**.
+- Config desplegada `~/.config/Claude/claude_desktop_config.json`: **24 servidores** — el `octave` viejo
+  (`/home/astrid/octave-mcp/server.py`) **volvió** (ver corrección 2026-11-13) y `md-simulation` sigue
+  (`mcp-ecosystem-chiloe/server.py`, 8 tools). Backup del ciclo 6: `claude_desktop_config.json.bak-20261109-202525`;
+  backup previo a la restauración: `claude_desktop_config.json.bak-20261113-205922-pre_restore_octave`.
+  El template quedó en **30 servidores** (28 + `octave` restaurado).
+- **Corrección 2026-11-13 (regresión del ciclo 6):** `octave` **no era duplicado** de `octave-chiloe`.
+  `octave-mcp` es un **gateway** de 3 meta-tools (`list_tools`, `get_tool_schema`, `call_tool`) sobre un catálogo
+  de **377 tools de dominio**; `octave-chiloe` expone 13 nativas y `md-simulation` 8. Medido con
+  `inspector --cli --method tools/call --tool-name list_tools`. Los tres coexisten sin ambigüedad.
+  Regla: antes de dar de baja un server por "mismo nombre/fewer tools", contar el **catálogo real**, no la
+  superficie MCP; un gateway no se puede deduplicar contra un server de tools directas.
 - **Paquetes de Octave visibles para toda la máquina** (fix C3-12, fuera del repo): registro en
   `/home/astrid/.config/octave/api-v61/octave_packages` (copia con las rutas reescritas hacia
   `~/.local/share/octave/api-v61/packages/`, con su `# length:` actualizado) y paquetes
@@ -100,16 +107,17 @@
   Se agregaron los 9 servidores propios del repo + `octave-chiloe` (13 tools) apuntando a la
   ruta canónica; **sin tocar** las 12 entradas previas. El `octave` viejo (3 tools,
   `/home/astrid/octave-mcp/server.py`) se conservó a propósito.
-  **Actualizado en este ciclo**: el `octave` viejo ya **salió** (duplicaba a `octave-chiloe`) y entró
-  `md-simulation` → sigue en **22 servidores**, pero con una fuente de verdad para Octave
-  (backup `claude_desktop_config.json.bak-20261109-202525`).
+  **Actualizado en este ciclo**: el `octave` viejo **volvió** a la config desplegada (no era duplicado:
+  gateway con 377 tools) y `md-simulation` sigue → **24 servidores**; el template quedó en **30**
+  (backup previo a la restauración: `claude_desktop_config.json.bak-20261113-205922-pre_restore_octave`).
 - Template: 28 → **24** claves (podadas `mcp-registry`, `inkscape`, `krita`,
   `materials-project` — binarios inexistentes — y **2 claves duplicadas** `analisis-suelos` y
   `bolsa-mcp`, cuya versión vieja pisaba a la nueva). Rutas `npx` corregidas al node real
   (`/home/astrid/.local/share/pi-node/node-v22.23.2-linux-x64/bin/npx`): `filesystem` pasó de
   caído a 14 tools y `firecrawl-mcp` de caído a 26 tools.
   **Actualizado en este ciclo**: 24 → **28** claves (`octave` → `octave-chiloe`, + `md-simulation`,
-  `bench`, `mcp-blender-full`, `unrealMCP`); commit `42ab49a`.
+  `bench`, `mcp-blender-full`, `unrealMCP`); commit `42ab49a`. **Corrección 2026-11-13**: el renombre
+  `octave` → `octave-chiloe` fue una regresión → la entrada `octave` (gateway) volvió al template: **30 claves**.
 - `microbio-env` y `physics-env`: scipy **arreglado** (1.18.1, reinstall `--only-binary=:all:`;
   los `.so` previos no eran ELF, magic `00 10 dd fc`). `microbio-mcp` = 6 tools y
   `physics-mcp` = 8 tools → ambos vuelven a responder en las dos configs.

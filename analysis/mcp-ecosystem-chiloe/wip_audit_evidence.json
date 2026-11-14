@@ -380,12 +380,26 @@
   "config_deploy": {
     "ruta": "/home/astrid/.config/Claude/claude_desktop_config.json",
     "servidores_antes": 22,
-    "servidores_despues": 22,
+    "servidores_despues": 24,
     "cambios": [
-      "out: octave (/home/astrid/octave-mcp/server.py, 3 tools) - duplicaba a octave-chiloe (13 tools)",
-      "in: md-simulation (mcp-ecosystem-chiloe/server.py, 8 tools)"
+      "in: md-simulation (mcp-ecosystem-chiloe/server.py, 8 tools)",
+      "out: octave - RETIRADO POR ERROR (ver correccion_2026_11_13): no era duplicado",
+      "in: octave RESTAURADO 2026-11-13 (/home/astrid/octave-mcp/server.py con su venv propio)"
     ],
-    "backup": "claude_desktop_config.json.bak-20261109-202525",
+    "correccion_2026_11_13": {
+      "hallazgo": "El ciclo 6 retired la entrada 'octave' al suponer que duplicaba a 'octave-chiloe' por exponer 3 tools vs 13.",
+      "medicion": "inspector tools/call --tool-name list_tools sobre octave devuelve 377 tools de dominio (superficie MCP = 3 meta-tools: list_tools, get_tool_schema, call_tool).",
+      "restauracion": {
+        "config_desplegada": "entrada octave reinsertada -> 24 servidores; backup claude_desktop_config.json.bak-20261113-205922-pre_restore_octave",
+        "template_canonico": "entrada octave reinsertada -> 30 servidores (sin commitear al cierre de este ciclo)"
+      },
+      "verificacion": [
+        "octave -> 3 meta-tools",
+        "octave-chiloe -> 13 tools nativas",
+        "md-simulation -> 8 tools"
+      ]
+    },
+    "backup": "claude_desktop_config.json.bak-20261109-202525; restauracion octave: claude_desktop_config.json.bak-20261113-205922-pre_restore_octave",
     "sesion_claude_desktop": {
       "estado": "relanzada (no estaba corriendo)",
       "version": "4.23118.0 (claude-desktop-unofficial)",

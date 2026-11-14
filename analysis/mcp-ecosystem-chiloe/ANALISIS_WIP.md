@@ -10,9 +10,12 @@ A/B del pipeline GROMACS por MCP contra HEAD y contra el WIP · sesión real de 
 **Estado final:** `065ed73` (fix de versionado) → `8bfd6ba` (fixes propios) → `3bf3141` (WIP commiteado tal cual)
 → `d4cb051` (C3-5/C3-6/C3-7 corregidos) → `42ab49a` (template alineado) → `e56a081` (C3-8 corregido), los seis
 pusheados a `origin/main`.
-**Cierre operativo:** config desplegada y template alineados (22 → 22 con `md-simulation` en lugar del
-`octave` viejo; template 24 → 28), Claude Desktop relanzado con el config real y **24 servidores levantados**
-(23 con handshake OK; `openbb-mcp` cae por red).
+**Cierre operativo:** config desplegada y template alineados (22 → 22 con `md-simulation` incorporado; template 24 → 28),
+Claude Desktop relanzado con el config real y **24 servidores levantados** (23 con handshake OK; `openbb-mcp` cae por red).
+> **Corrección 2026-11-13 (§8):** el ciclo 6 quitó la entrada `octave` de la config desplegada creyéndola duplicada.
+> **No lo era**: `octave-mcp` es un gateway de 3 meta-tools sobre un catálogo de **377 tools de dominio**; `octave-chiloe`
+> (13 tools nativas del repo) y `md-simulation` (8) conviven con ella. La entrada `octave` fue **restaurada** en la config
+> desplegada y en el template canónico (que volvió a 30 entradas).
 **Corrida de humo:** `run_gromacs` verificado de punta a punta con el **env de la app** (§7.4) — pipeline
 completo, `finished: true`, 3 bloques de energía, `203.969 ns/day`. La corrida **dentro de la UI** de Claude
 Desktop queda bloqueada por cuota de mensajes (§7.5).
@@ -52,7 +55,7 @@ inyección de shell en `jobs.py` — que es justo lo que causa C3-2.
 | `8bfd6ba` | fixes propios: GROMACS en dos etapas + log real + COPASI 4.48.311 operativo + template con el venv |
 | `3bf3141` | tu WIP commiteado byte a byte (`jobs.py`, `verificar_mcp.py` y 7 servidores-propios) |
 | `d4cb051` | C3-5 (`job_id` con `uuid4`), C3-6 (16 imports muertos) y C3-7 (`octave_bin()` centralizado) |
-| `42ab49a` | template: `octave` → `octave-chiloe` + `md-simulation`, `bench`, `mcp-blender-full`, `unrealMCP` |
+| `42ab49a` | template: `octave` → `octave-chiloe` + `md-simulation`, `bench`, `mcp-blender-full`, `unrealMCP` — **el renombre de `octave` fue una regresión, revertida en §8** |
 | `e56a081` | C3-8: `ejecutar_octave`/`analizar_suelo` devuelven `dict` con contrato documentado |
 
 ---
@@ -315,6 +318,8 @@ y se corrigieron después, en `d4cb051`.
 **`42ab49a` → `origin/main` (template alineado):** `claude_desktop_config.template.json` pasa de 24 a 28
 servidores: `octave` → `octave-chiloe` (el mismo `octave_mcp.py` del repo canónico, 13 tools) y se suman
 `md-simulation` (GROMACS/LAMMPS, 8 tools), `bench`, `mcp-blender-full` y `unrealMCP`.
+> **Corrección 2026-11-13:** ese renombre de `octave` no debió hacerse: `octave` es el gateway del usuario
+> (`/home/astrid/octave-mcp`, 377 tools de dominio) y no un duplicado de `octave-chiloe`. Revertido en §8.
 
 **`e56a081` → `origin/main` (C3-8):**
 
