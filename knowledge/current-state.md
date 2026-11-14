@@ -1,41 +1,24 @@
 # Current State
 
-- Goal: entregar análisis estáticos de repos vía VS Code MCP + MCP Inspector.
-- Stage: ciclo 6 (auditoría del **WIP del usuario** en `mcp-ecosystem-chiloe`) — **cerrado**:
-  12 hallazgos, **10 corregidos**, 1 cerrado a nivel de entorno (C3-12) y la corrida de humo **ejecutada
-  con éxito vía MCP con el env de la app**; lo único abierto es la invocación **desde el chat de la UI**
-  de Claude Desktop (bloqueada por cuota y por exposición de herramientas). Ciclo 5 (análisis declarado
-  vs. MCP real) cerrado antes; ciclo 4 (Ternario) cerrado antes.
-- Current task: ciclo 6 cerrado. Auditoría del WIP (11 archivos modificados + 12 untracked) en
-  `analysis/mcp-ecosystem-chiloe/ANALISIS_WIP.md` + `wip_audit_evidence.json`. Hallazgos:
-  **C3-1 alta** (`formulas_tool.py` sin versionar → el repo publicado no arrancaba en clon
-  limpio; **corregido** en `065ed73`), **C3-2 alta** (`jobs.py` con `shell=False`+`shlex.split`
-  rompe `run_gromacs`: el cmd lleva `&&`; **corregido** en `8bfd6ba`, opción A), **C3-3 media**
-  (`gazebo_utils.py` sin versionar; **corregido** en `065ed73`), **C3-4 media** (COPASI: el bloqueo
-  era el entorno, no la instalación; **corregido** en `8bfd6ba` + config con el venv), C3-5 baja
-  (`job_id` colisiona; **corregido** en `d4cb051`), C3-6 baja (16 imports muertos; **corregido** en
-  `d4cb051`), C3-7 baja (`_octave_bin()` duplicado ×3; **corregido** en `d4cb051`), C3-8 info
-  (cambio de contrato JSON en `ejecutar_octave`; **corregido** en `e56a081`: ambos handlers devuelven
-  `dict` con contrato documentado), C3-9 info (clave TLS
-  sin regla de ignore; **corregido**), C3-10/C3-11 media (log real de GROMACS y falso positivo de
-  `error`; **corregidos** en `8bfd6ba`), **C3-12 media** (`octave-chiloe` sano pero invisible para
-  Claude Desktop/Inspector por los `XDG_*` del runtime del workbench; **corregido a nivel máquina**:
-  registro en `~/.config/octave/api-v61/octave_packages` + paquetes en
-  `~/.local/share/octave/api-v61/packages/`). Verificado bueno del WIP: timeout+cleanup de
-  `mcp_suelos`, `hilbert_tool` con `mkstemp`, `bolsa_mcp` con dato real (AAPL 349,36),
-  `gazebo-core` (`Gazebo Sim 8.15.0`), `copasi` operativo con la solución analítica.
-- Next action: con el usuario — (a) reintentar la corrida de `run_gromacs` **desde el chat de Claude
-  Desktop** cuando termine el límite de cuota (*"You are out of free messages until 3:30 AM"*) y confirmar
-  si `md-simulation` aparece entre las herramientas del modelo (en la sesión probada no le fue expuesta,
-  aunque el server está sano: handshake + `tools/list` OK), (b) reiniciar Claude Desktop para que
-  `analisis-suelos` tome el `mcp_suelos.py` nuevo (`e56a081`), (c) pendiente known: los 3 servidores
-  `uvx` que requieren red (`gdal`, `openbb-mcp`, `qgis` — `openbb-mcp` es el único que efectivamente
-  cae en la sesión real).
-  **Cerrado en este ciclo**: C3-2 (opción A), C3-5/6/7, C3-8, `copasi` con venv, `octave` viejo →
-  `octave-chiloe`, `bench`/`mcp-blender-full`/`unrealMCP`/`md-simulation` en las configs, el WIP
-  versionado (`3bf3141`) y la corrida de humo con el env de la app (job
-  `gromacs_smoke_app_1794273194_0e4478`, `finished: true`).
-- Ciclo 4 (cerrado): las 12 correcciones de Ternario están aplicadas y commiteadas en
+- Goal: cerrar los **4 huecos** entre el benchmark (`lcl-bench`) y el repo de C
+  (`githu/codigos-potenciados/`): (1) π por polígonos, (2) ábaco/suanpan + multiplicación védica,
+  (3) middle-square de 4 dígitos, (4) entradas de registry para `CORDIC` / `Hastings` /
+  `LCG-Lehmer` / `matematica_ancestral` + versión C de `goertzel_vs_fft`.
+- Stage: **3 de 4 huecos cerrados y verificados**; el 4b (`goertzel_vs_fft` en C, con FFT radix-2
+  real) está implementado y documentado; falta el **4a** (los 4 registries nuevos en `lcl-bench`).
+  Los módulos nuevos compilan con **0 warnings** bajo
+  `-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion -Wcast-qual
+  -Wstrict-prototypes -Wmissing-prototypes -Werror` y pasan sus tests.
+- Current task: cierre de docs del ciclo en `githu` (README del módulo `goertzel`, README de
+  `pi_ancestral`, README raíz, `tools/gen_compile_commands.py`, `.vscode/c_cpp_properties.json`,
+  notas y memoria) + commit local. Los commits `78415f7` (canónica `mcp-ecosystem-chiloe`) y
+  `94684a6` (`githu`) están **locales, sin push** (falta OK explícito del usuario).
+- Next action: (a) crear en `lcl-bench` los 4 registries (`cordic`, `hastings`, `lcg_lehmer`,
+  `matematica_ancestral`) con evaluadores Octave + Python y dispatch por `family`, y agregarlos a
+  `_load_entries()` de `mcp/bench_server.py`; (b) con el usuario: OK para pushear `78415f7` /
+  `94684a6`; (c) reiniciar Claude Desktop para que `analisis-suelos` tome el `mcp_suelos.py` nuevo;
+  (d) pendiente known: los 3 servidores `uvx` que requieren red (`gdal`, `openbb-mcp`, `qgis`).
+- Ciclo 6 (cerrado antes): las 12 correcciones de Ternario están aplicadas y commiteadas en
   `Ternario-ancestral-sensores` (`master` @ `b361241`, fix de código en `544f633`, pusheado).
   Verificado: gcc `-m32 -Wall -Wextra` sobre las 45 TUs del kernel con 0 errores y con las
   clases de aviso que eran bug real en 0 (`-Wtype-limits` 9→0, `-Wimplicit-function-declaration`
@@ -46,6 +29,33 @@
 
 ## Facts_changed
 
+- Módulos nuevos en `codigos-potenciados/` (verificados el 2026-11-14, 0 warnings con flags
+  estrictos y tests en verde): `pi_ancestral/` (**30/30**), `abacus_vedic/` (**29/29**),
+  `middle_square/` (**17/17**) y `goertzel/` + `goertzel_vs_fft_test.c` (**24/24**).
+- `pi_ancestral`: la recurrencia correcta de Arquímedes es `c' = 2·i·c/(i+c)` (media armónica) y
+  `i' = i·sqrt(2·c/(i+c))` con **los valores viejos** (módulo: `i(10) = 3.141592516692157`,
+  `c(10) = 3.141592927385096`). El **orden importa**: `c'` primero y después `i' = sqrt(c'·i)` es
+  algebraicamente equivalente (converge a π, err 1.3e-15 a 30 iteraciones — es lo que hace la
+  herramienta `archimedes_pi` de `mcp-ecosystem-chiloe`), pero si el inscrito se actualiza antes
+  que el circunscrito la iteración colapsa a **3.300413165133028** en lugar de a π.
+- `middle_square` (von Neumann, 4 dígitos): ciclo máximo **4** (6100→2100→4100→8100→6100),
+  **1968/10000** estados caen en el sumidero 0, 100 y 2500 son puntos fijos, la órbita de 1234
+  tiene **63** estados, y el χ² del mapa de 10 bins es **74,18** frente a **9,78** del `msws64`
+  (crítico 9 g.l. 99 % = 21,67). `msws64.h` es header-only; `ms_next_4` es `static` en
+  `msws64.c` (no exportada) → replicada en el test.
+- `goertzel`: `|X[k]|` es la DFT **sin normalizar** (comparable con la FFT radix-2 y con el
+  analítico `N·A/2`, salvo Nyquist: `N·|cos φ|`). `goertzel_fft(re, im, n)` es **in-place** y
+  devuelve 0/−1; error máximo contra la DFT directa (N=64) = **5.048e-13**. El spread entre
+  formulaciones se evalúa **relativo** (`spread/mayor < 1e-8`), no en absoluto.
+- Los scripts de referencia `goertzel_test.py`, `goertzel_test.m` y `goertzel_bench.py` están en la
+  **raíz de `githu`**, no en el directorio del módulo; `goertzel_bench.py` dice explícitamente que
+  no se ejecute para sacar conclusiones de rendimiento (Python interpretado no es comparable).
+- `lcl-bench` (`/home/astrid/Documents/OpenScience/sessions/2026-10-23-0117`, repo git propio):
+  los registries viven en `registries/*.json` y `mcp/bench_server.py` los carga con una **tupla
+  fija** en `_load_entries()` (`attractors`, `potentials`, `energy_drift`, `goertzel_fft`,
+  `archimedes_pi`, `middle_square_weyl`, `hybrid_prng`); el dispatch por `family` vive en
+  `octave/registry_run.m` y `python/registry_run.py`. Constantes: `TIMEOUT_S = 180`,
+  `PROTOCOL_VERSION = "2024-11-05"`, `VARIANTS = ("reference","float32","euler","euler_large","euler_single")`.
 - `mcp-ecosystem-chiloe` `origin/main` @ **`1208598`** (commit propio del usuario, 2026-11-09 23:50
   −0300): `jobs._pid_alive` da por **terminado** un proceso zombie (`os.waitpid(pid, WNOHANG)` + estado
   `Z` leído de `/proc/<pid>/stat`) y suma una regla de `.gitignore`. Incluye `e56a081` (C3-8) como

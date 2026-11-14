@@ -7,14 +7,17 @@
             "cppStandard": "c++17",
             "intelliSenseMode": "linux-gcc-x64",
             "includePath": [
+                "${workspaceFolder}/codigos-potenciados/abacus_vedic",
                 "${workspaceFolder}/codigos-potenciados/cordic",
                 "${workspaceFolder}/codigos-potenciados/goertzel",
                 "${workspaceFolder}/codigos-potenciados/goertzel/src",
                 "${workspaceFolder}/codigos-potenciados/hastings",
                 "${workspaceFolder}/codigos-potenciados/hybrid_prng",
                 "${workspaceFolder}/codigos-potenciados/lcg_lehmer",
+                "${workspaceFolder}/codigos-potenciados/middle_square",
                 "${workspaceFolder}/codigos-potenciados/msws64",
-                "${workspaceFolder}/codigos-potenciados/matematica_ancestral"
+                "${workspaceFolder}/codigos-potenciados/matematica_ancestral",
+                "${workspaceFolder}/codigos-potenciados/pi_ancestral"
             ],
             "defines": [],
             "compilerArgs": [

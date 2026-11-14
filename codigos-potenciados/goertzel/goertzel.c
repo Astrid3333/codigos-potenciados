@@ -1,4 +1,4 @@
-/* hastings.c - Implementaciones del algoritmo de Goertzel con tres formulaciones
+/* goertzel.c - Implementaciones del algoritmo de Goertzel con tres formulaciones
  *
  * Implementa las tres formulaciones del algoritmo de Goertzel:
  *   - K = 2*cos(w)       (forma original, zona media)
@@ -96,4 +96,69 @@ goertzel_cpx_t goertzel_hybrid(const double *x, size_t n, double w) {
 
 double goertzel_mag(const goertzel_cpx_t *c) {
     return sqrt(c->re * c->re + c->im * c->im);
+}
+
+/* ---------- FFT radix-2 in-place (para comparar con Goertzel) --------- */
+
+int goertzel_es_potencia_de_dos(size_t n) {
+    return (n > 0U && (n & (n - 1U)) == 0U) ? 1 : 0;
+}
+
+int goertzel_fft(double *re, double *im, size_t n) {
+    size_t i, j, m, mmax, istep;
+    double theta, wtemp, cr, ci, wr, wi;
+    if (!re || !im || !goertzel_es_potencia_de_dos(n)) {
+        return -1;
+    }
+
+    /* reordenamiento de bits (bit reversal) */
+    for (i = 1U, j = 0U; i < n; ++i) {
+        size_t bit = n >> 1;
+        for (; (j & bit) != 0U; bit >>= 1) {
+            j ^= bit;
+        }
+        j ^= bit;
+        if (i < j) {
+            double tr = re[i];
+            double ti = im[i];
+            re[i] = re[j];
+            im[i] = im[j];
+            re[j] = tr;
+            im[j] = ti;
+        }
+    }
+
+    /* mariposas */
+    for (mmax = 1U; mmax < n; mmax = istep) {
+        istep = mmax << 1;
+        theta = -2.0 * M_PI / (double)istep;
+        cr = cos(theta);
+        ci = sin(theta);
+        wr = 1.0;
+        wi = 0.0;
+        for (m = 0U; m < mmax; ++m) {
+            for (i = m; i < n; i += istep) {
+                j = i + mmax;
+                wtemp = wr * re[j] - wi * im[j];
+                {
+                    double wi2 = wr * im[j] + wi * re[j];
+                    re[j] = re[i] - wtemp;
+                    im[j] = im[i] - wi2;
+                    re[i] += wtemp;
+                    im[i] += wi2;
+                }
+            }
+            wtemp = wr;
+            wr = wtemp * cr - wi * ci;
+            wi = wtemp * ci + wi * cr;
+        }
+    }
+    return 0;
+}
+
+double goertzel_fft_mag(const double *re, const double *im, size_t n, size_t k) {
+    if (!re || !im || k >= n) {
+        return 0.0;
+    }
+    return sqrt(re[k] * re[k] + im[k] * im[k]);
 }

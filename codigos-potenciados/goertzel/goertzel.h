@@ -50,4 +50,17 @@ goertzel_cpx_t goertzel_beta(const double *x, size_t n, double w);
 goertzel_cpx_t goertzel_hybrid(const double *x, size_t n, double w);
 double goertzel_mag(const goertzel_cpx_t *c);
 
+/* FFT radix-2 in-place (re/im son arrays de n elementos).
+ * n debe ser potencia de dos; devuelve 0 si se pudo calcular y -1 si los
+ * argumentos son invalidos o n no es potencia de dos.
+ * La salida es la DFT SIN normalizar: |X[k]| es directamente comparable con
+ * |goertzel_K(x, n, 2*pi*k/n)|. */
+int goertzel_fft(double *re, double *im, size_t n);
+
+/* Magnitud del bin k de una DFT sin normalizar ya calculada */
+double goertzel_fft_mag(const double *re, const double *im, size_t n, size_t k);
+
+/* 1 si n es potencia de dos (n > 0), 0 en caso contrario */
+int goertzel_es_potencia_de_dos(size_t n);
+
 #endif /* GOERTZEL_H */

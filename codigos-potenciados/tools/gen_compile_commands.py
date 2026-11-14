@@ -17,13 +17,16 @@ import os
 import sys
 
 MODULES = [
+    "abacus_vedic",
     "cordic",
     "goertzel",
     "hastings",
     "hybrid_prng",
     "lcg_lehmer",
+    "middle_square",
     "msws64",
     "matematica_ancestral",
+    "pi_ancestral",
 ]
 
 ROOT_FILES = ["randu_plus.c", "sine_fixed.c"]

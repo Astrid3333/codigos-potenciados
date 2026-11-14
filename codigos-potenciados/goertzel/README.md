@@ -8,10 +8,18 @@ ayuda en Python.
 
 | Archivo | Contenido |
 |---------|-----------|
-| `goertzel.h` | Declaraciones de las funciones Goertzel (K, α, β, híbrida) y FFT radix-2 |
-| `goertzel.c` | Implementación en C + benchmark de precisión y timing |
+| `goertzel.h` | Declaraciones de las funciones Goertzel (K, α, β, híbrida) y de la FFT radix-2 |
+| `goertzel.c` | Implementación en C de las cuatro formulaciones y de la FFT radix-2 in-place |
+| `goertzel_test.c` | Demo: tones en bins específicos con las tres formulaciones |
+| `goertzel_vs_fft_test.c` | Pruebas: Goertzel contra FFT radix-2 y contra la magnitud analítica |
 | `goertzel_tool.py` | Tool de ayuda en Python (mismos algoritmos, referencia numpy) |
 | `README.md` | Este archivo |
+
+En la raíz del repositorio hay tres scripts de referencia que no forman parte
+del módulo: `goertzel_test.py` (Python+numpy: error relativo contra la suma
+directa en `long double`), `goertzel_test.m` (Octave: FFTW vs Goertzel) y
+`goertzel_bench.py` (datos de rendimiento ya medidos, comentados; no ejecutar
+para extraer conclusiones de rendimiento).
 
 ## Formulaciones
 
@@ -28,30 +36,124 @@ cancelación.
 
 ## Compilar y ejecutar (C)
 
+`goertzel.c` es una biblioteca (no tiene `main`): hay que linkearla con uno de
+los dos programas del módulo.
+
+Suite de pruebas (Goertzel contra FFT):
+
 ```bash
-gcc -std=c11 -O2 goertzel.c -o goertzel_bench -lm
-./goertzel_bench
+gcc -std=c11 -O2 goertzel.c goertzel_vs_fft_test.c -lm -o prueba_fft
+./prueba_fft
 ```
 
-Salida de ejemplo (valores aproximados):
+Demo de tonos (sin asserts, imprime magnitudes):
+
+```bash
+gcc -std=c11 -O2 goertzel.c goertzel_test.c -lm -o demo_goertzel
+./demo_goertzel
+```
+
+Salida real de la demo (N = 131072, ruido gaussiano con 5 tonos):
 
 ```
-N = 131072, ruido gaussiano. Error relativo en magnitud vs suma directa (long double)
-      k        omega      K=2cos       alpha        beta      hibrida
-      1   4.79e-05    4.8e-08    1.7e-13    1.7e-13    1.7e-13
-   1000   4.79e-02    4.9e-12    2.7e-14    2.7e-14    2.7e-14
-  32768   1.57e+00    2.7e-14    6.4e-13    6.1e-14    6.1e-14
-  65535   3.14e+00    4.3e-08    2.4e-07    2.5e-13    2.5e-13
+N = 131072, ruido gaussiano con 5 tonos
 
-Benchmark (C, -O2, 20 repeticiones, N = 131072):
-     forma     ms/ejec   relativo
-   K=2cos       0.334       1.00x
-   alpha        0.341       1.02x
-   beta         0.410       1.23x
-   hibrida      ...         ...
-   FFT rad2     4.570        --
-1 FFT ~= 14 bins de Goertzel K
+    bin        omega         K=2cos        alpha      hibrida
+      1     0.000048   65535.999523   65536.000000   65536.000000
+     10     0.000479   32768.000026   32768.000000   32768.000000
+   1000     0.047937   16384.000000   16384.000000   16384.000000
+  32768     1.570796   32768.000000   32768.000000   32768.000000
+  65535     3.141545   16383.999886   16384.000672   16384.000000
 ```
+
+La tabla de error relativo en magnitud (contra la suma directa en `long double`)
+la produce el script de referencia de la raíz del repositorio:
+
+```bash
+python3 ../../goertzel_test.py
+```
+
+```
+N = 131072, entrada ruido gaussiano. Error relativo en magnitud vs suma directa en long double
+
+  bin k      omega     K=2cos      alpha        fft
+      1   4.79e-05    4.8e-08    1.7e-13    1.2e-16
+      3   1.44e-04    6.6e-09    1.2e-13    3.0e-17
+     10   4.79e-04    2.3e-09    5.4e-15    4.3e-16
+    100   4.79e-03    1.5e-10    9.2e-15    5.3e-16
+   1000   4.79e-02    4.9e-12    2.7e-14    4.4e-14
+  16384   7.85e-01    2.3e-13    2.1e-13    1.8e-13
+  32768   1.57e+00    2.7e-14    6.4e-13    4.3e-13
+  65535   3.14e+00    4.3e-08    2.4e-07    1.8e-12
+
+Variante hibrida (alpha si w<pi/2, beta si w>pi/2):
+  bin k      omega     K=2cos    hibrida
+      1   4.79e-05    4.8e-08    1.7e-13
+     10   4.79e-04    2.3e-09    5.4e-15
+   1000   4.79e-02    4.9e-12    2.7e-14
+  32767   1.57e+00    3.5e-15    6.1e-14
+  32769   1.57e+00    1.5e-14    2.0e-12
+  64536   3.09e+00    7.2e-13    1.5e-15
+  65526   3.14e+00    6.5e-10    1.9e-14
+  65535   3.14e+00    4.3e-08    2.5e-13
+```
+
+## FFT radix-2 in-place
+
+`goertzel.c` incluye una FFT radix-2 iterativa, in-place, sobre arrays de
+parte real e imaginaria:
+
+```c
+int    goertzel_fft(double *re, double *im, size_t n);   /* 0 si ok, -1 si n no es potencia de dos */
+double goertzel_fft_mag(const double *re, const double *im, size_t n, size_t k);
+int    goertzel_es_potencia_de_dos(size_t n);
+```
+
+La salida es la DFT **sin normalizar**, de modo que `|X[k]|` es directamente
+comparable con `|goertzel_K(x, n, 2*pi*k/n)|`: las dos rutas dan la misma
+magnitud (no hace falta dividir por N).
+
+## Pruebas: Goertzel contra FFT
+
+```bash
+gcc -std=c11 -O2 goertzel.c goertzel_vs_fft_test.c -lm -o prueba_fft
+./prueba_fft
+```
+
+La suite verifica 24 casos: la FFT contra la DFT directa, el rechazo de
+longitudes que no son potencia de dos, y la coincidencia de Goertzel K, α, β y
+FFT contra la magnitud analítica `N*A/2` de tonos puros (N = 8192, bins 1,
+1000 y 4095).
+
+Resultados medidos (salida real de la suite):
+
+```
+   bin      analitico            FFT     Goertzel K     Goertzel a     Goertzel b
+     1    4096.000000    4096.000000    4096.000000    4096.000000    4095.999999  (spread 5.057e-07)
+  1000    2048.000000    2048.000000    2048.000000    2048.000000    2048.000000  (spread 4.434e-11)
+  4095    1024.000000    1024.000000    1024.000000    1024.000000    1024.000000  (spread 1.301e-07)
+```
+
+Error máximo de la FFT contra la DFT directa (N = 64): 5.048e-13.
+
+La suite compila limpia con los flags estrictos del proyecto y cierra con
+`24/24 pruebas pasaron`:
+
+```bash
+gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Wshadow -Wconversion \
+    -Wsign-conversion -Wcast-qual -Wstrict-prototypes -Wmissing-prototypes \
+    -Werror goertzel.c goertzel_vs_fft_test.c -lm -o prueba_fft
+```
+
+Dos comentarios sobre las tolerancias:
+
+- El spread entre variantes se evalúa **relativo** (spread / magnitud), no
+  absoluto: con magnitudes del orden de 10³, un spread absoluto de 1e-8 es
+  más exigente que la precisión de `double` en las formas menos precisas.
+- El spread absoluto medido (5.1e-07 en el bin 1, 1.3e-07 en el bin 4095) lo
+  aporta siempre la variante que no corresponde a esa zona: β se degrada
+  cuando ω es pequeño y K cuando ω está cerca de π, tal como describe la tabla
+  de formulaciones.
 
 ## Tool de ayuda (Python)
 
@@ -74,6 +176,10 @@ compilado ni con FFTW. Los tiempos de este script son solo indicativos del
 costo del bucle interpretado, no del algoritmo en sí.
 
 ## Benchmarks de referencia
+
+Datos ya medidos y archivados en `goertzel_bench.py` (raíz del repositorio);
+el binario que los produjo no forma parte del repo, así que conviene volver a
+medir si se los quiere comparar con hardware nuevo.
 
 ### C compilado (-O2, sin -ffast-math, N = 131072)
 
@@ -115,4 +221,4 @@ devuelven un coeficiente complejo `{re, im}`.
 ## Referencia
 
 Resultados experimentales detallados en `lista_codigos_obsoletos.md` (raíz del
-repositorio) y en `goertzel_test.py` / `goertzel_test.m`.
+repositorio) y en la salida de `goertzel_test.c` / `goertzel_vs_fft_test.c`.
