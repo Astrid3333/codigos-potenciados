@@ -15,15 +15,23 @@
   Los módulos nuevos compilan con **0 warnings** bajo
   `-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion -Wcast-qual
   -Wstrict-prototypes -Wmissing-prototypes -Werror` y pasan sus tests.
-- Current task: ciclo 8 cerrado — fix de `hastings` (signo de `sin` y Remez) **aplicado y
-  verificado** (33/33, 0 warnings, commit `faf8f37`) y hueco 4a **cerrado** en `lcl-bench`
-  (`d92fcb4`). Los commits `78415f7` (canónica `mcp-ecosystem-chiloe`), `94684a6`, `943ea95`
-  y `faf8f37` (`githu`) y `d92fcb4` (`lcl-bench`) están **locales, sin push** (falta OK
-  explícito del usuario).
-- Next action: (a) con el usuario: OK para pushear `78415f7` / `94684a6` / `943ea95` /
-  `faf8f37` / `d92fcb4`; (b) opcional: evaluadores Fortran para las 4 entradas nuevas (el hub
-  tolera `MISSING`); (c) reiniciar Claude Desktop para que `analisis-suelos` tome el
-  `mcp_suelos.py` nuevo; (d) pendiente known: los 3 servidores `uvx` que requieren red
+- Current task: ciclo 9 cerrado — los 4 registries nuevos de `lcl-bench`
+  (`cordic`, `hastings`, `lcg_lehmer`, `matematica_ancestral`) tienen **tres**
+  implementaciones: Octave, Python y **Fortran** (módulo nuevo
+  `fortran/fmath.f90` + 4 evaluadores en `fortran/frunner.f90`, commit
+  `4d9a4db`, pusheado). Fortran 28/28 entries (ASAN+UBSan limpio), Octave
+  32/32, Python 32/32, hub con las 4 entradas en **ALL_PASS [PPP]** y
+  coincidencia bit a bit entre lenguajes (1 ULP como máximo en
+  `egyptian_sum_err`). Se corrigió además un dato de referencia del registry:
+  `q15_err_max` decía "Medido: 4.509e-05" y los tres lenguajes miden
+  **2.256e-05**. Ciclo 8 (fix de `hastings`, signo de sin y Remez) verificado
+  con 33/33 y 0 warnings, commit `faf8f37`. Todos los commits de esta sesión
+  están **pusheados** (`githu` y `lcl-bench` sincronizados con `origin`).
+- Next action: (a) opcional: evaluadores Fortran para `goertzel_vs_fft` (hoy es
+  un programa aparte, `fortran/registry_eval_dsp.f90`, no integrado al `f_runner`),
+  `archimedes_pi`, `middle_square_weyl` y `hybrid_prng`; (b) con el usuario:
+  reiniciar Claude Desktop para que `analisis-suelos` tome el `mcp_suelos.py`
+  nuevo; (c) pendiente known: los 3 servidores `uvx` que requieren red
   (`gdal`, `openbb-mcp`, `qgis`).
 - Ciclo 6 (cerrado antes): las 12 correcciones de Ternario están aplicadas y commiteadas en
   `Ternario-ancestral-sensores` (`master` @ `b361241`, fix de código en `544f633`, pusheado).
