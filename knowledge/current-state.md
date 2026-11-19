@@ -32,12 +32,14 @@
     `for idx = 1:numel(x)`. El `.m` nunca se había ejecutado.
   - Docs: `lista_codigos_obsoletos.md` → `resultados_goertzel.md`; README raíz, README del
     módulo Goertzel y `msws64/README.md` actualizados.
-- Next action: (a) commit local del ciclo 10 (solo archivos propios; hay WIP ajeno en el
-  working tree); (b) revisar `codigos-potenciados/goertzel/src/goertzel_arduino.h` (variante
-  Arduino, su híbrido sigue con corte en π/2); (c) nota en `VALIDATION_REPORT.md` para que
-  "6/6" de `randu_plus_validator.py` no se lea como validación del generador;
-  (d) en `octave-mcp`: decidir si `ancestral_octave_tool.py` vuelve a `source()` de los
-  `.m` o se regenera la copia embebida, y restaurar `mode=validate`.
+- Next action: (a) commit local del cierre de `VALIDATION_REPORT.md` y la nota del ciclo
+  (el resto del ciclo 10 ya esta en `1a0a2dd`); (b) proximo ciclo: hacer que
+  `randu_plus_validator.py` compile un `.c` que incluya `randu_plus.h` en vez de escribir
+  su propia copia embebida del generador (hoy divergen desde la salida 0 con semillas
+  pares); (c) revisar `codigos-potenciados/goertzel/src/goertzel_arduino.h` (variante
+  Arduino, su híbrido sigue con corte en π/2); (d) en `octave-mcp`: decidir si
+  `ancestral_octave_tool.py` vuelve a `source()` de los `.m` o se regenera la copia
+  embebida, y restaurar `mode=validate`.
 
 - Goal: cerrar los **4 huecos** entre el benchmark (`lcl-bench`) y el repo de C
   (`githu/codigos-potenciados/`): (1) π por polígonos, (2) ábaco/suanpan + multiplicación védica,
