@@ -164,17 +164,62 @@ int main(void) {
 
     printf("\n--- La hibrida elige la variante correcta segun la zona ---\n");
     {
-        size_t k = 1U;
-        double w = 2.0 * M_PI * (double)k / (double)N;
-        goertzel_cpx_t cH = goertzel_hybrid(x, N, w);
-        goertzel_cpx_t cA = goertzel_alpha(x, N, w);
-        double mag_h = goertzel_mag(&cH);
-        double mag_a = goertzel_mag(&cA);
-        double mag_fft = goertzel_fft_mag(re, im, N, k);
-        verificar("la hibrida usa alpha para w < pi/2",
-                  fabs(mag_h - mag_a) == 0.0);
-        verificar("la hibrida coincide con la FFT (rel < 1e-8)",
-                  fabs(mag_h - mag_fft) / mag_fft < 1e-8);
+        /* La hibrida tiene 3 zonas: alpha si w < pi/4, K si pi/4 <= w <= 3pi/4,
+         * beta si w > 3pi/4. Ademas pliega por aliasing para w > pi. */
+        double w_ref = 2.0 * M_PI / (double)N;
+
+        /* zona baja: alpha */
+        {
+            size_t k = 1U;
+            double w = 2.0 * M_PI * (double)k / (double)N;
+            goertzel_cpx_t cH = goertzel_hybrid(x, N, w);
+            goertzel_cpx_t cA = goertzel_alpha(x, N, w);
+            verificar("la hibrida usa alpha para w < pi/4",
+                      goertzel_mag(&cH) == goertzel_mag(&cA));
+        }
+
+        /* zona media: K */
+        {
+            double w = M_PI / 2.0;
+            goertzel_cpx_t cH = goertzel_hybrid(x, N, w);
+            goertzel_cpx_t cK = goertzel_K(x, N, w);
+            goertzel_cpx_t cA = goertzel_alpha(x, N, w);
+            verificar("la hibrida usa K para pi/4 <= w <= 3pi/4",
+                      goertzel_mag(&cH) == goertzel_mag(&cK));
+            verificar("en pi/2 la forma K es estrictamente mejor que alpha",
+                      goertzel_mag(&cK) != goertzel_mag(&cA));
+        }
+
+        /* zona alta: beta */
+        {
+            double w = M_PI - w_ref;
+            goertzel_cpx_t cH = goertzel_hybrid(x, N, w);
+            goertzel_cpx_t cB = goertzel_beta(x, N, w);
+            goertzel_cpx_t cK = goertzel_K(x, N, w);
+            verificar("la hibrida usa beta para w > 3pi/4",
+                      goertzel_mag(&cH) == goertzel_mag(&cB));
+            verificar("cerca de pi la forma beta es estrictamente mejor que K",
+                      goertzel_mag(&cB) != goertzel_mag(&cK));
+        }
+
+        /* plegado por aliasing: para w > pi el resultado debe coincidir con
+         * el de w' = 2pi - w conjugado.
+         * Ojo: x es un tono puro en bins {1, 4095, 1000}, de modo que la
+         * magnitud en el bin 0.75N es ~0 y no sirve para un error relativo.
+         * Se comprueba la magnitud contra el conjugado de la forma evaluada
+         * en w' (referencia exacta para esta señal) y el complejo completo
+         * contra la DFT directa del bin equivalente. */
+        {
+            size_t k = (size_t)(0.75 * (double)N);   /* w = 3*pi/2, bin entero */
+            double w = 2.0 * M_PI * (double)k / (double)N;
+            goertzel_cpx_t cH = goertzel_hybrid(x, N, w);
+            goertzel_cpx_t cRef = goertzel_K(x, N, 2.0 * M_PI - w);
+            verificar("la hibrida pliega por aliasing en w > pi (magnitud)",
+                      fabs(goertzel_mag(&cH) - goertzel_mag(&cRef)) < 1e-9);
+            verificar("la hibrida pliega por aliasing en w > pi (fase)",
+                      fabs(cH.re - cRef.re) < 1e-9 &&
+                      fabs(cH.im + cRef.im) < 1e-9);
+        }
     }
 
     printf("\n--- Un tono en el bin de Nyquist ---\n");

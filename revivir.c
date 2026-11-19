@@ -6,10 +6,22 @@
  *   - Solo +, -, *, /, >>, << en bucles internos
  *   - libm SOLO para medir error (bajo #ifdef TEST)
  *
+ * Sobre las restricciones, con precisión:
+ *   - La versión en punto fijo heron_sqrt_q16() cumple todo lo anterior:
+ *     solo +, -, *, / y >>, sin ninguna llamada a libm.
+ *   - La versión en doble heron_sqrt() usa frexp() y ldexp() UNA SOLA VEZ
+ *     para arrancar (fuera de todo bucle); el bucle de iteración usa solo
+ *     +, *, /. frexp/ldexp no son raíz cuadrada ni seno: solo descomponen y
+ *     recomponen el exponente en base 2.
+ *   - aryabhata_sine_gen() usa sin() una sola vez, antes del bucle, para
+ *     calcular la constante alpha = 4·sin²(h/2) y el valor inicial d0.
+ *     El bucle en sí usa solo +, -, *.
+ *
  * Referencias:
  *   1. Teorema Chino del Resto — Sunzi (s. III–V), Qin Jiushao (1247)
  *   2. Método Babilónico / Heron de Alejandría (s. I d.C.)
- *   3. Recurrencia de Aryabhata (499 d.C.) — Aryabhatiya, Ganitapada 12
+ *   3. Recurrencia de diferencias de Aryabhata (499 d.C.) — Aryabhatiya,
+ *      Ganitapada 12. Ver la nota de atribución donde se implementa.
  *
  * Compilar: gcc -std=c89 -pedantic -Wall -Wextra -DTEST revivir.c -o revivir -lm
  *           gcc -std=c11 -O2 -DTEST revivir.c -o revivir -lm
@@ -155,7 +167,7 @@ static unsigned long heron_sqrt_q16(unsigned long S_q16) {
 }
 
 /* =========================================================================
- * 3. SENO — RECURRENCIA DE ARYABHATA (499 d.C.) USANDO SEGUNDAS DIFERENCIAS
+ * 3. SENO — DIFERENCIAS DE ARYABHATA (499 d.C.) USANDO SEGUNDAS DIFERENCIAS
  * =========================================================================
  *
  * Implementación numéricamente estable usando segundas diferencias.
@@ -169,14 +181,27 @@ static unsigned long heron_sqrt_q16(unsigned long S_q16) {
  *
  * Error: ~9.66e-15 (cumple objetivo 7e-14) y no usa sin/cos en el bucle.
  * 36 000 pasos = círculo completo.
+ *
+ * NOTA DE ATRIBUCIÓN: la recurrencia implementada es la forma moderna de la
+ * regla de diferencias successive de Aryabhata, pero no es la regla histórica
+ * literal. El método histórico (Aryabhatiya, Ganitapada 12) tabla el seno con
+ * diferencias de primer orden y una corrección acumulativa, y aplica además
+ * una corrección periódica cada cierto número de pasos. La expresión
+ * s[n+1] = 2·cos(h)·s[n] - s[n-1] tampoco es la de Aryabhata: es la solución
+ * exacta de la recurrencia lineal con coeficiente constante, y aquí no se usa
+ * justamente porque 2 - 2·cos(h) suffería cancelación. Lo que se implementa es
+ * una reescritura estable en segunda diferencias de la misma idea. Atribuir
+ * "la recurrencia exacta de Aryabhata" a este código sería generoso; la
+ * atribución correcta es "recurrencia de diferencias al estilo de Aryabhata,
+ * modernizada para evitar la cancelación".
  */
 
 #define SINE_STEPS 36000
 #define TWO_PI     6.283185307179586476925286766559
 
-/* Generador Aryabhata usando segundas diferencias (regla histórica exacta).
+/* Generador de seno por diferencias al estilo de Aryabhata (segundas diferencias).
  * Error ~9.66e-15 (objetivo 7e-14 cumplido). No usa sin/cos en el bucle.
- * 36 000 pasos = círculo completo. */
+ * 36 000 pasos = círculo completo. Ver la nota de atribución del bloque anterior. */
 static void aryabhata_sine_gen(double *out, size_t n) {
     const double h = TWO_PI / SINE_STEPS;
     const double alpha = 4.0 * sin(h/2) * sin(h/2); /* constante, calculada una sola vez */
@@ -284,7 +309,7 @@ static void test_heron_q16(void) {
     worst = 0;
     S = 1;
     while (S <= U64_C(0xFFFFFFFF)) {
-        r = heron_sqrt_q16((unsigned long)S) / 65536.0;
+        r = (double)heron_sqrt_q16((unsigned long)S) / 65536.0;
         ref = sqrt((double)S / 65536.0);
         ulp = fabs(r - ref) * 65536.0;
         if (ulp > worst) worst = ulp;

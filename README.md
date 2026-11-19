@@ -15,7 +15,7 @@ Repositorio de trabajo del agente `evolve-agent`. Contiene código C bajo `codig
 
 | Módulo | Descripción | Estado |
 |--------|-------------|--------|
-| `goertzel/` | Algoritmo Goertzel con 3 formulaciones (K, α, β, híbrida) + FFT radix-2 de referencia | Listo para Arduino (float), DTMF |
+| `goertzel/` | Algoritmo Goertzel con 3 formulaciones (K, α, β) + híbrida de 3 zonas con plegado por aliasing + FFT radix-2 de referencia | Listo para Arduino (float), DTMF |
 | `hastings/` | Aproximaciones polinómicas de sin, atan, atan2, asin, sqrt, exp, log1p, log, pow (grado 5 en x², hasta grado 11 en x) | Listo para Arduino, error 1e-5 o mejor; Remez minimax opcional |
 | `cordic/` | CORDIC (Volder 1959): seno/coseno solo con sumas, restas y shifts | Listo para Arduino |
 | `lcg_lehmer/` | Análisis espectral de LCG (RANDU, MINSTD), prueba de período, híbrido LCG+msws64, TCR-LCG | Completo |
@@ -24,7 +24,13 @@ Repositorio de trabajo del agente `evolve-agent`. Contiene código C bajo `codig
 | `hybrid_prng/` | PRNG híbrido middle-square + msws64 con tests estadísticos y unitarios | Completo |
 | `abacus_vedic/` | Suanpan chino sobre cuentas (suma, resta, multiplicación) + multiplicación védica (urdhva) y cruces | Completo (29/29 tests) |
 | `pi_ancestral/` | π por polígonos de Arquímedes (cotas inscrita/circunscrita) + extrapolación de Liu Hui con Richardson | Completo (30/30 tests) |
-| `randu_plus.c`, `sine_fixed.c` | Utilidades sueltas | Completo |
+| `randu_plus.c`, `sine_fixed.c` | Utilidades sueltas | Completo (ver nota abajo) |
+
+> **Nota sobre `randu_plus`.** RANDU + fmix32 **no** es un buen generador: fmix32
+> es una biyección, así que la salida determina el estado y el retículo de RANDU
+> sigue siendo recuperable; el período real es 2³⁰. Se conserva como ejemplo
+> histórico con la advertencia explícita, y el propio test lo verifica (8/8).
+> Para generar números_use `codigos-potenciados/msws64/`.
 
 ## Compilar y probar
 
@@ -55,6 +61,18 @@ gcc -std=c11 -O2 -Wall -Wextra codigos-potenciados/abacus_vedic/abacus_vedic.c c
 
 # pi_ancestral
 gcc -std=c11 -O2 -Wall -Wextra codigos-potenciados/pi_ancestral/pi_ancestral.c codigos-potenciados/pi_ancestral/pi_ancestral_test.c -lm -o /tmp/pi_ancestral_test
+
+# sine_fixed (raíz): Q16.16 con tabla e interpolación, test con criterio
+cc -std=c99 -O2 -Wall -Wextra -pedantic -Werror -DTEST sine_fixed.c -lm -o /tmp/sine_fixed_test
+/tmp/sine_fixed_test
+
+# sine_fixed (codigos-potenciados): Q16.16 y Q32.32 con índice entero
+cc -std=c99 -O2 -Wall -Wextra -pedantic -Werror -DTEST codigos-potenciados/sine_fixed.c -lm -o /tmp/sine_cp_test
+/tmp/sine_cp_test
+
+# randu_plus: verifica biyectividad, retículo recuperable y período real
+cc -std=c99 -O2 -Wall -Wextra -pedantic -Werror randu_plus.c -o /tmp/randu_test
+/tmp/randu_test
 ```
 
 Los módulos nuevos (`goertzel`, `middle_square`, `abacus_vedic`, `pi_ancestral`)

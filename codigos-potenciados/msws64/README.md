@@ -54,9 +54,9 @@ gcc -std=c11 -O2 msws64.c -o msws64_test -lm
 
 ## Integración con el resto del proyecto
 
-- `codigos-potenciados/goertzel/` — algoritmo de Goertzel con formulaciones K, α, β, híbrida
-- `codigos-potenciados/randu_plus.c` — RANDU + fmix32
-- `codigos-potenciados/sine_fixed.c` — generadores de seno en punto fijo
+- `codigos-potenciados/goertzel/` — algoritmo de Goertzel con formulaciones K, α, β, híbrida de 3 zonas
+- `codigos-potenciados/randu_plus.c` — RANDU + fmix32 (ejemplo histórico, no recomendado; ver la advertencia en el archivo)
+- `codigos-potenciados/sine_fixed.c` — generadores de seno en punto fijo Q16.16 / Q32.32
 
 ## Referencia
 

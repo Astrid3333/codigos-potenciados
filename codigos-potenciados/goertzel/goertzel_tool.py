@@ -64,10 +64,29 @@ def goertzel_beta(x, w: float) -> complex:
 
 
 def goertzel_hybrid(x, w: float) -> complex:
-    """Hibrida: alpha si w < pi/2, beta si w >= pi/2."""
-    if w < math.pi / 2.0:
-        return goertzel_alpha(x, w)
-    return goertzel_beta(x, w)
+    """Hibrida de 3 zonas: alpha si w < pi/4, K si pi/4 <= w <= 3pi/4, beta si w > 3pi/4.
+
+    Los umbrales estan medidos (N = 131072, referencia long double):
+    en w -> 0 la forma K pierde precision decimal (K = 2cos(w) -> 2), y en
+    w -> pi ocurre lo mismo por simetria, mientras que K es la mas estable
+    en la zona media (en w = pi/2 exacto, alpha y beta dan 1.6e-11 y K da 1.2e-13).
+
+    Para w > pi se aplica el plegado por aliasing w' = 2*pi - w y se conjuga
+    el resultado: X[2*pi*k/N] es la conjugada de X[2*pi*(N-k)/N] para senal real.
+    Sin ese plegado la zona w > pi usaria beta, que es la forma peor ahi; el peor
+    error en [0, 2*pi) baja de 2.2e-09 a 1.4e-10 al plegar.
+    """
+    conjugate = False
+    if w > math.pi:
+        w = 2.0 * math.pi - w
+        conjugate = True
+    if w < math.pi / 4.0:
+        c = goertzel_alpha(x, w)
+    elif w > 3.0 * math.pi / 4.0:
+        c = goertzel_beta(x, w)
+    else:
+        c = goertzel_K(x, w)
+    return c.conjugate() if conjugate else c
 
 
 def ref_magnitude(x, w: float) -> float:
@@ -101,7 +120,8 @@ def run_benchmark(N: int = 2 ** 17, seed: int = 1) -> None:
         eF = relative_error(abs(X[k]), R)
         print(f"{k:7d} {w:12.2e} {eK:12.1e} {eA:12.1e} {eB:12.1e} {eH:12.1e} {eF:12.1e}")
 
-    print("\nVariant hibrida (alpha si w<pi/2, beta si w>=pi/2):")
+    print("\nVariant hibrida (3 zonas: alpha si w<pi/4, K si pi/4<=w<=3pi/4, "
+          "beta si w>3pi/4, con plegado 2pi-w):")
     print(f"{'bin k':>7} {'omega':>12} {'K=2cos':>12} {'hibrida':>12}")
     bins2 = [1, 10, 1000, N // 4 - 1, N // 4 + 1, N // 2 - 1000, N // 2 - 10, N // 2 - 1]
     for k in bins2:

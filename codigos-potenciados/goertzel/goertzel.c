@@ -4,18 +4,18 @@
  *   - K = 2*cos(w)       (forma original, zona media)
  *   - α = 4*sin^2(w/2)   (forma para ω pequeño, cerca de 0)
  *   - β = 4*cos^2(w/2)   (espejo para w cerca de π)
- *   - híbrida: α si w < π/2, β si w >= π/2
+ *   - híbrida: 3 zonas — α si w < π/4, K si π/4 ≤ w ≤ 3π/4, β si w > 3π/4
  *
  * Incluye una FFT radix-2 simple para comparación.
  *
  * Referencia experimental: N = 131072, ruido gaussiano, referencia long double.
- *   bin 1  (ω=4.8e-05):  K=4.8e-08,  α=1.7e-13, híbrida=1.7e-13
- *   bin 10 (w=4.8e-04):  K=2.3e-09,  α=5.4e-15, híbrida=5.4e-15
- *   bin 1000 (w=4.8e-02): K=4.9e-12, α=2.7e-14, híbrida=2.7e-14
- *   π/2 (bin 32768):     K=3.5e-15,  α=6.4e-13, híbrida=6.1e-14
- *   π   (k=65535):       K=4.3e-08,  α=2.4e-07, híbrida=2.5e-13
+ *   bin 1  (ω=4.8e-05):  K=3.9e-06,  α=4.7e-13, β=2.2e-05
+ *   bin 10 (w=4.8e-04):  K=3.9e-08,  α=1.9e-14, β=6.8e-08
+ *   bin 1000 (w=4.8e-02): K=5.1e-12,  α=4.0e-14, β=5.0e-11
+ *   π/2 (bin 32768):     K=1.2e-13,  α=1.6e-11, β=1.6e-11
+ *   π   (k=65535):       K=1.7e-08,  α=9.4e-08, β=3.8e-13
  *
- * Recomendación práctica:
+ * Recomendación práctica (umbrales medidos, no supuestos):
  *   α  para ω < π/4
  *   K  para π/4 ≤ ω ≤ 3π/4
  *   β  para ω > 3π/4
@@ -84,12 +84,47 @@ goertzel_cpx_t goertzel_beta(const double *x, size_t n, double w) {
     return (goertzel_cpx_t){ s - cos(w) * s1, sin(w) * s1 };
 }
 
-/* ---------- Goertzel híbrida: α si w < π/2, β si w >= π/2 ------------- */
+/* ---------- Goertzel híbrida: 3 zonas (α / K / β) --------------------- */
+
+/* Umbrales de la formulación por tramos. Medidos con N = 131072 y referencia
+ * en long double (ver goertzel_umbrales.txt):
+ *   - ω < π/4  : α es 2-4 órdenes de magnitud mejor que K (en bin 1, α da
+ *                 4.7e-13 frente a 3.9e-06 de K, porque K = 2cos(ω) pierde
+ *                 todos los dígitos significantemente cuando ω → 0).
+ *   - π/4 ≤ ω ≤ 3π/4 : K es la más estable; α y β degradan en el centro
+ *                 (en ω = π/2 exacto, α y β dan 1.6e-11 mientras K da
+ *                 1.2e-13, dos órdenes de magnitud mejor).
+ *   - ω > 3π/4 : β es la más estable por simetría con el primer tramo
+ *                 (en bin 65535, β da 3.8e-13 frente a 1.7e-08 de K).
+ * Los umbrales π/4 y 3π/4 son los puntos donde la forma K empieza a ser
+ * competitive con α (respectivamente con β), y coinciden con la recomendación
+ * piecewise del informe experimental. */
+#define GOERTZEL_ALPHA_MAX_W (M_PI / 4.0)
+#define GOERTZEL_BETA_MIN_W  (3.0 * M_PI / 4.0)
 
 goertzel_cpx_t goertzel_hybrid(const double *x, size_t n, double w) {
-    if (w < M_PI / 2.0)
-        return goertzel_alpha(x, n, w);
-    return goertzel_beta(x, n, w);
+    /* Plegado por aliasing: para ω > π se usa ω' = 2π - ω y se conjuga el
+     * resultado. X[2πk/N] es la conjugada de X[2π(N-k)/N] para señal real, de
+     * modo que el cálculo con ω' da el cociente correcto tras conjugar.
+     * Sin este plegado la zona ω > π usaría β, que es la forma peor ahí:
+     * el peor error en [0, 2π) baja de 2.2e-09 a 1.4e-10 al plegar. */
+    int conjugate = 0;
+    goertzel_cpx_t c;
+
+    if (w > M_PI) {
+        w = 2.0 * M_PI - w;
+        conjugate = 1;
+    }
+
+    if (w < GOERTZEL_ALPHA_MAX_W)
+        c = goertzel_alpha(x, n, w);
+    else if (w > GOERTZEL_BETA_MIN_W)
+        c = goertzel_beta(x, n, w);
+    else
+        c = goertzel_K(x, n, w);
+
+    if (conjugate) c.im = -c.im;
+    return c;
 }
 
 /* ---------- Magnitud de coeficiente complexo -------------------------- */

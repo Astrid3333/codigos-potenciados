@@ -1,5 +1,44 @@
 # Current State
 
+- Goal: **ciclo 10** — aplicar la revisión externa (`pasted.txt`) a 4 puntos del repo:
+  (1) `sine_fixed.c` roto, (2) `randu_plus` no arregla RANDU, (3) `revivir.c` documentado
+  con `frexp/ldexp` y atribución de Aryabhata, (4) el doc de Goertzel con umbrales medidos.
+- Stage: **ciclo 10 cerrado y verificado** (nota completa en `notes/2026-11-19.md`).
+  - `sine_fixed.c` (raíz) reescrito: fase entera en 1/100 grado, tabla de 3600 puntos con
+    4 bits decimales extra, interpolación redondeada una vez, salida `int32_t` Q16.16
+    completa. max_err **8.086e-06** (0.53 LSB). Test con exit code + **3 mutaciones
+    detectadas**.
+  - `codigos-potenciados/sine_fixed.c`: bug real = índice por coma flotante
+    (`(int)(th/(2π/36000))` redondeaba a `i-1` en 2799/36001 puntos) → índice entero
+    `(i + offset) mod 36001`. Implementado el **Q32.32** que el header prometía.
+    Errores: Q16.16 **7.629e-06**, Q32.32 **1.164e-10**.
+  - `randu_plus.{h,c}`: fmix32 **es** biyectivo → el retículo de RANDU se recupera desde
+    la salida; período real **2³⁰** (verificado por exponenciación binaria). Header honesto
+    (ejemplo histórico; para generar, `msws64/`). Test con **8 comprobaciones** y exit code.
+    El inverso de `x ^= x>>13` es `x ^= x>>13; x ^= x>>26`.
+  - `revivir.c`: solo docs (el `INV_M12_M3 = 28900` del pegado ya estaba bien desde
+    `4e371a0`). Atribución de Aryabhata suavizada. Sin cambio de comportamiento.
+  - Goertzel: **híbrida de 3 zonas** (α / K / β con cortes en π/4 y 3π/4) **+ plegado por
+    aliasing** (`w' = 2π-w`, conjugando) en C, Python y Octave. Peor error en [0,2π):
+    **2.215e-09 → 1.424e-10** (×15.6); error medio 1.312e-11 → **4.557e-12** (×2.9).
+    El peor caso sin plegado está en `w → 2π` (no en todo `w > π`): allí `cos(w) → 1`
+    y **K y β degeneran a la vez** (K→2, β→4); α no (`α=4sin²(w/2)→0`). El plegado lleva
+    `w→2π` a `w'→0`, donde la híbrida elige α. C ↔ Python ↔ Octave **bit a bit**
+    (dif máx 0.000e+00). Suite **29/29** (antes 24/24). Archivos nuevos
+    `goertzel_umbrales.c` y `goertzel_umbrales_hibrida.c` (este último registra el
+    `argmax` y el error medio).
+  - **Bug real encontrado en `goertzel_test.m`**: en Octave `for v = x` itera por
+    **columnas**, no por elementos → la recurrencia se aplicaba a un vector. Corregido a
+    `for idx = 1:numel(x)`. El `.m` nunca se había ejecutado.
+  - Docs: `lista_codigos_obsoletos.md` → `resultados_goertzel.md`; README raíz, README del
+    módulo Goertzel y `msws64/README.md` actualizados.
+- Next action: (a) commit local del ciclo 10 (solo archivos propios; hay WIP ajeno en el
+  working tree); (b) revisar `codigos-potenciados/goertzel/src/goertzel_arduino.h` (variante
+  Arduino, su híbrido sigue con corte en π/2); (c) nota en `VALIDATION_REPORT.md` para que
+  "6/6" de `randu_plus_validator.py` no se lea como validación del generador;
+  (d) en `octave-mcp`: decidir si `ancestral_octave_tool.py` vuelve a `source()` de los
+  `.m` o se regenera la copia embebida, y restaurar `mode=validate`.
+
 - Goal: cerrar los **4 huecos** entre el benchmark (`lcl-bench`) y el repo de C
   (`githu/codigos-potenciados/`): (1) π por polígonos, (2) ábaco/suanpan + multiplicación védica,
   (3) middle-square de 4 dígitos, (4) entradas de registry para `CORDIC` / `Hastings` /

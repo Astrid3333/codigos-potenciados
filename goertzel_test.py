@@ -39,9 +39,23 @@ def goertzel_beta(x, w):
     s1 = d - s
     return s - complex(math.cos(w), -math.sin(w))*s1
 def goertzel_hybrid(x, w):
-    return goertzel_alpha(x, w) if w < math.pi/2 else goertzel_beta(x, w)
+    # 3 zonas: alpha si w < pi/4, K si pi/4 <= w <= 3pi/4, beta si w > 3pi/4.
+    # Plegado por aliasing: para w > pi se usa w' = 2pi - w y se conjuga,
+    # porque para señal real X[2pi k/N] = conj(X[2pi (N-k)/N]).
+    conj = False
+    if w > math.pi:
+        w = 2*math.pi - w
+        conj = True
+    if w < math.pi/4:
+        z = goertzel_alpha(x, w)
+    elif w > 3*math.pi/4:
+        z = goertzel_beta(x, w)
+    else:
+        z = goertzel_K(x, w)
+    return z.conjugate() if conj else z
 
-print("\nVariante hibrida (alpha si w<pi/2, beta si w>pi/2):")
+print("\nVariante hibrida (3 zonas: alpha si w<pi/4, K si pi/4<=w<=3pi/4, "
+      "beta si w>3pi/4, con plegado 2pi-w):")
 print(f"{'bin k':>7} {'omega':>10} {'K=2cos':>10} {'hibrida':>10}")
 for k in [1, 10, 1000, N//4-1, N//4+1, N//2-1000, N//2-10, N//2-1]:
     w = 2*math.pi*k/N; R = ref(x, w)

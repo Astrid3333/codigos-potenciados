@@ -25,14 +25,21 @@ para extraer conclusiones de rendimiento).
 
 | Forma | Uso recomendado | Error típico (N=131072) |
 |-------|-----------------|-------------------------|
-| `K = 2·cos(w)` | Zona media, `π/4 ≤ w ≤ 3π/4` (cerca de π/2) | 3.5e-15 en π/2 |
-| `α = 4·sin²(w/2)` | `w < π/4` (pequeño) | 1.7e-13 en bin 1 |
-| `β = 4·cos²(w/2)` | `w > 3π/4` (cerca de π, espejo) | 2.5e-13 en bin 65535 |
-| `híbrida` | α si `w < π/2`, β si `w ≥ π/2` | Combina α y β |
+| `K = 2·cos(w)` | Zona media, `π/4 ≤ w ≤ 3π/4` (cerca de π/2) | 1.2e-13 en π/2 |
+| `α = 4·sin²(w/2)` | `w < π/4` (pequeño) | 4.7e-13 en bin 1 |
+| `β = 4·cos²(w/2)` | `w > 3π/4` (cerca de π, espejo) | 3.8e-13 en bin 65535 |
+| `híbrida` | α si `w < π/4`, K si `π/4 ≤ w ≤ 3π/4`, β si `w > 3π/4` | La mejor en cada zona |
 
 La forma α falla cerca de π por cancelación espejo con `2 + K`; la forma β
 corrige eso. La forma K es óptima cerca de π/2 porque `cos(w) ≈ 0` y no hay
 cancelación.
+
+La híbrida usa **3 zonas**, no 2: en `w = π/2` exacto las formas α y β dan
+1.6e-11 mientras K da 1.2e-13, así que un corte en π/2 (que usaría β justo
+en el centro) es subóptimo. Además pliega por aliasing (`w' = 2π - w`, conjugando
+el resultado) para `w > π`. Con el plegado, el peor error relativo en `[0, 2π)`
+baja de 2.2e-09 a 1.4e-10. Los umbrales π/4 y 3π/4 están medidos, no supuestos:
+ver `resultados_goertzel.md` en la raíz del repositorio.
 
 ## Compilar y ejecutar (C)
 
@@ -77,22 +84,23 @@ python3 ../../goertzel_test.py
 N = 131072, entrada ruido gaussiano. Error relativo en magnitud vs suma directa en long double
 
   bin k      omega     K=2cos      alpha        fft
-      1   4.79e-05    4.8e-08    1.7e-13    1.2e-16
-      3   1.44e-04    6.6e-09    1.2e-13    3.0e-17
+      1   4.79e-05    4.8e-08    1.7e-13    2.5e-16
+      3   1.44e-04    6.6e-09    1.2e-13    3.9e-16
      10   4.79e-04    2.3e-09    5.4e-15    4.3e-16
-    100   4.79e-03    1.5e-10    9.2e-15    5.3e-16
-   1000   4.79e-02    4.9e-12    2.7e-14    4.4e-14
+    100   4.79e-03    1.5e-10    9.2e-15    3.9e-16
+   1000   4.79e-02    4.9e-12    2.7e-14    4.5e-14
   16384   7.85e-01    2.3e-13    2.1e-13    1.8e-13
   32768   1.57e+00    2.7e-14    6.4e-13    4.3e-13
   65535   3.14e+00    4.3e-08    2.4e-07    1.8e-12
 
-Variante hibrida (alpha si w<pi/2, beta si w>pi/2):
+Variante hibrida (3 zonas: alpha si w<pi/4, K si pi/4<=w<=3pi/4, beta si w>3pi/4,
+con plegado por aliasing 2pi-w para w>pi):
   bin k      omega     K=2cos    hibrida
       1   4.79e-05    4.8e-08    1.7e-13
      10   4.79e-04    2.3e-09    5.4e-15
    1000   4.79e-02    4.9e-12    2.7e-14
-  32767   1.57e+00    3.5e-15    6.1e-14
-  32769   1.57e+00    1.5e-14    2.0e-12
+  32767   1.57e+00    3.5e-15    3.5e-15
+  32769   1.57e+00    1.5e-14    1.5e-14
   64536   3.09e+00    7.2e-13    1.5e-15
   65526   3.14e+00    6.5e-10    1.9e-14
   65535   3.14e+00    4.3e-08    2.5e-13
@@ -137,7 +145,7 @@ Resultados medidos (salida real de la suite):
 Error máximo de la FFT contra la DFT directa (N = 64): 5.048e-13.
 
 La suite compila limpia con los flags estrictos del proyecto y cierra con
-`24/24 pruebas pasaron`:
+`29/29 pruebas pasaron`:
 
 ```bash
 gcc -std=c11 -O2 -Wall -Wextra -Wpedantic -Wshadow -Wconversion \
@@ -220,5 +228,5 @@ devuelven un coeficiente complejo `{re, im}`.
 
 ## Referencia
 
-Resultados experimentales detallados en `lista_codigos_obsoletos.md` (raíz del
-repositorio) y en la salida de `goertzel_test.c` / `goertzel_vs_fft_test.c`.
+Resultados experimentales detallados y umbrales medidos en `resultados_goertzel.md`
+(raíz del repositorio), y en la salida de `goertzel_test.c` / `goertzel_vs_fft_test.c`.
