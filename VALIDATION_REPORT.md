@@ -2,14 +2,15 @@
 
 **Semillas:** 12345, 1, 3, 7, 4242, 65537, 99991, 2147483647 (8 semillas impares distintas)
 **Muestra por semilla:** 1000000 uint32 (4.0 MB)
-**Fecha:** Fri Nov 20 12:55:46 AM -03 2026
-**Git commit:** 05d094845baef78f8d9af80b71b2a147bf7ff80e
+**Fecha:** Fri Nov 20 01:34:15 AM -03 2026
+**Git commit:** 53b1e6810236cb030ba4961e039da4577ef21bca
 
 ## Resultados (peor caso entre semillas)
 
 | Test | metrica | peor caso | semilla | pass |
 |------|---------|-----------|---------|------|
 | Spectral3D | ratio | 0.982369 | 3 | ✅ |
+| MarsagliaSpectral3D | p_value | 0.106094 | 1 | ✅ |
 | BirthdaySpacings | p_value | 0.149875 | 3 | ✅ |
 | Permutation | p_value | 0.024850 | 3 | ✅ |
 | NIST_Frequency | p_value | 0.034827 | 1 | ✅ |
@@ -17,14 +18,16 @@
 | NIST_Runs | p_value | 0.255144 | 99991 | ✅ |
 | HeaderCrossCheck | bit a bit | 1000 valores x 5 semillas x 2 headers | - | ✅ |
 | HeaderSync | sha256 | 2 copias de randu_plus.h | - | ✅ |
+| LatticeNegativeControl | p + planos | 150000 uint32, semilla 12345 | - | ✅ |
 
-**Total: 8/8 pasados**
+**Total: 10/10 pasados**
 
 ## Valor de cada test en cada semilla
 
 | Test | 12345 | 1 | 3 | 7 | 4242 | 65537 | 99991 | 2147483647 |
 |---|---|---|---|---|---|---|---|---|
 | Spectral3D | 1.0040 | 1.0003 | 0.9824 | 1.0003 | 1.0017 | 1.0040 | 0.9930 | 0.9937 |
+| MarsagliaSpectral3D | 0.9185 | 0.1061 | 0.7557 | 0.7340 | 0.8240 | 0.5236 | 0.6950 | 0.5773 |
 | BirthdaySpacings | 0.2208 | 0.3101 | 0.1499 | 0.9521 | 0.4149 | 0.5293 | 0.5293 | 0.1499 |
 | Permutation | 0.9620 | 0.3751 | 0.0249 | 0.2517 | 0.7218 | 0.7539 | 0.2955 | 0.0807 |
 | NIST_Frequency | 0.8736 | 0.0348 | 0.8881 | 0.9133 | 0.2360 | 0.5241 | 0.7242 | 0.8552 |
@@ -36,6 +39,7 @@
 | Test | uint32 consumidos | bits |
 |------|-------------------|------|
 | Spectral3D | 150000 | - |
+| MarsagliaSpectral3D | 150000 | 4800000 |
 | BirthdaySpacings | 20000 | - |
 | Permutation | 50000 | - |
 | NIST_Frequency | 1000000 | 32000000 |
@@ -58,6 +62,21 @@
 
 Version: TestU01 1.2.3. Harness: `codigos-potenciados/testu01/run_randu_plus` (fuentes versionadas; el binario se construye con el `Makefile` de ese directorio).
 
+## Control negativo: el retículo se detecta y se recupera
+
+El control usa 150000 uint32 del generador del repo (semilla 12345) y contrasta la **salida mezclada** (`fmix32`) con el **estado crudo** del LCG.
+
+| flujo | p espectral 3D (Marsaglia) | planos del retículo | veredicto |
+|------|----------------------------|----------------------|----------|
+| salida mezclada (`randu_plus()`) | 0.919006 | no aplica (no es retículo) | ✅ no detecta |
+| estado crudo del LCG | 0 | 15 planos (k = [-9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5]) | ✅ detecta |
+| estado recuperado con `unfmix32` desde la salida | 0 | 15 planos | ✅ detecta |
+
+Relación exacta `x[n+2] = 6·x[n+1] - 9·x[n] (mod 2^32)` en el estado crudo: **True**. `unfmix32(salida)` recupera el estado crudo: **True**.
+
+Este control es el que demuestra que la batería no se autoengaña: el mismo test espectral que **rechaza** el estado crudo **acepta** la salida mezclada, y el estado crudo se puede recuperar desde esa salida porque `fmix32` es una biyección. La estructura se oculta al test de caja negra, no desaparece.
+
+
 ## Qué prueba este informe y qué NO
 
 Este informe mide **propiedades estadísticas del flujo de bits** de la salida
@@ -77,6 +96,35 @@ de los valores entre semillas, no el de una ejecución afortunada.
   estados de RANDU pero no añade entropía ni rompe el retículo.
 - El recuento dice "el flujo **parece** aleatorio a estas escalas", no "el
   generador es criptográficamente seguro" ni "cumple ISO/IEC 23837".
+
+### Dos tests espectrales, y por qué están los dos
+
+- `Spectral3D` (métrica `ratio`) es un **proxy**: el determinante de la
+  covarianza de triples consecutivos, normalizado por el valor de ruido
+  blanco. **No** es el test espectral de Marsaglia y **no** da p-value. Es
+  rápido y sirve como indicador, pero por sí solo no distingue "estructura"
+  de "caso": se midió que da `ratio` ~0.99 (aprueba) sobre el estado crudo de
+  la variante de este repo, porque los planos de la variante mod 2^32 están
+  más separados en el cubo unitario y el determinante no los colapsa.
+- `MarsagliaSpectral3D` (métrica `p_value`) es el **test espectral de
+  Marsaglia** de verdad: rejilla 16^3 (4096 celdas, 12.2 valores esperados por
+  celda), chi-cuadrado de ocupación sobre las celdas completas y p-value exacto
+  (`P(df/2, chi2/2)`, cola derecha calculada con la gamma incompleta, no con la
+  aproximación Wilson-Hilferty). Sobre la salida mezclada da p-value alto
+  (peor caso entre las 8 semillas: 0.106); sobre el estado crudo da
+  p-value 0.
+
+### Control negativo (la parte que no se autoengaña)
+
+El informe incluye un control que aplica el test espectral **al estado crudo**
+del mismo generador y **a la salida mezclada**, y mide además el número de
+planos del retículo. Resultado medido: la relación
+`x[n+2] = 6·x[n+1] - 9·x[n] (mod 2^32)` se cumple **exactamente** en todas las
+ternas, el retículo ocupa **15 planos** (los mismos 15 valores de `k`, de -9 a
+5, que el RANDU clásico de Knuth mod 2^31), el test espectral **rechaza** el
+estado crudo y **acepta** la salida mezclada, y `unmix32(salida)` devuelve el
+estado crudo terna a terna. O sea: `fmix32` esconde la estructura al test de
+caja negra, pero la estructura se recupera desde la propia salida.
 
 ### Lo que aporta la batería de TestU01
 
