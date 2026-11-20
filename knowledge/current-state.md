@@ -24,7 +24,8 @@
     honestas), `VALIDATION_REPORT.md` regenerado (**10/10**),
     `VALIDATION_REPORT_PRNG_MODULES.md` nuevo. `cc -std=c99 -Wall -Wextra
     -pedantic -Werror randu_plus.c` → 8/8; `ruff` limpio en el script nuevo.
-  - **Pendiente**: push (nunca solicitado explícitamente) y refreshed de las
+  - **Push**: `d471e1b..a11acb8 master` (confirmado por el usuario; `origin/master`
+    verificado = `a11acb8`). Queda pendiente solo el refreshed de las
     copias `pasted*.txt` para el revisor (no puede abrir URLs de GitHub).
 - Goal anterior: **ciclo 17** — prueba directa del retículo de RANDU pedida por el
   revisor: pegar `randu_plus.h` y `randu_plus_validator.py` (el usuario no
