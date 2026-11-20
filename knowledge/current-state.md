@@ -1,6 +1,33 @@
 # Current State
 
-- Goal: **ciclo 16** — cerrar la revisión externa del repo con 4 puntos:
+- Goal: **ciclo 17** — prueba directa del retículo de RANDU pedida por el
+  revisor: pegar `randu_plus.h` y `randu_plus_validator.py` (el usuario no
+  puede abrirlos en GitHub) y medir, no suponer, la estructura de planos y el
+  test espectral 3D sobre la salida **cruda** vs. la **mezclada**.
+- Stage: **ciclo 17 cerrado y verificado** (nota completa en `notes/2026-11-20.md`).
+  - **Hechos medidos**: la relación `x[n+2] = 6·x[n+1] - 9·x[n] (mod 2^32)` se
+    cumple **exactamente** en todas las ternas del estado crudo y el retículo
+    ocupa **15 planos** (k = -9..5), los mismos 15 del RANDU clásico de Knuth
+    mod 2^31 (medido también: 15). `unmix32(salida)` devuelve el estado crudo
+    terna a terna → el retículo es recuperable desde la salida.
+  - **Test espectral real de Marsaglia** (rejilla 16³, chi-cuadrado de
+    ocupación sobre celdas completas, p-value exacto con gamma incompleta):
+    estado crudo → chi2=22672, df=4095, **p=0**; salida mezclada → chi2=3969,
+    df=4095, **p=0.919**.
+  - **Punto ciego encontrado**: el `Spectral3D` que ya tenía el validadro NO es
+    el test de Marsaglia (es el determinante de covarianza, sin p-value) y
+    sobre el estado crudo de **esta** variante mod 2^32 da ratio≈0.99
+    (**aprueba**), aunque sí rechaza el RANDU clásico mod 2^31 (ratio 0.0155):
+    los planos de la variante 2^32 están más separados en el cubo unitario.
+  - Cambios: `randu_plus_validator.py` (`chi2_sf_exact`+`gammaincc`,
+    `marsaglia_spectral_test`, `lattice_plane_count`, `fmix32_unmix32`,
+    `lattice_negative_control`, test `MarsagliaSpectral3D` en el barrido,
+    sección de control negativo en el informe, caveat corregido); `randu_plus.h`
+    (las 2 copias, byte a byte) documenta los 15 planos medidos; `README.md`
+    describe el control negativo; `VALIDATION_REPORT.md` regenerado.
+    Suite **10/10** (peor caso Marsaglia 0.106094, semilla 1); `ruff` con los
+    mismos 10 hallazgos preexistentes (0 nuevos).
+- Goal anterior: **ciclo 16** — cerrar la revisión externa del repo con 4 puntos:
   (1) batería estadística **multi-semilla** con criterio de peor caso,
   (2) integrar la evidencia de **TestU01 SmallCrush**, (3) corregir el dato de
   consumo de muestra del informe, (4) docs (`README` + descripción de GitHub).

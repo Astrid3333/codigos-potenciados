@@ -7,6 +7,13 @@
  * hace que los puntos caigan en un número reducido de planos del espacio 3D,
  * y por eso falla el test espectral 3D.
  *
+ * MEDIDO en este repo (no supuesto): el retículo de esta variante mod 2^32
+ * ocupa exactamente 15 planos (los valores k = -9..5 de
+ * 6*x[n+1] - 9*x[n] - x[n+2] = k*2^32), los mismos 15 planos que el RANDU
+ * clásico de Knuth mod 2^31. El test espectral de Marsaglia da p-value ~0
+ * sobre el estado crudo. Ver el control negativo `LatticeNegativeControl` de
+ * randu_plus_validator.py, que lo mide y lo publica.
+ *
  * fmix32 es el finalizador de MurmurHash3. Es una BIYECCIÓN sobre los 32 bits:
  * cada salida tiene un unico estado previo. Por lo tanto:
  *

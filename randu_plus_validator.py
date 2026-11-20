@@ -25,6 +25,58 @@ def chi2_sf(x: float, df: int) -> float:
     # cola derecha
     return 0.5 * math.erfc(z / math.sqrt(2))
 
+
+def gammaincc(a: float, x: float) -> float:
+    """Gamma incompleta regularizada superior P(a, x) (Numerical Recipes).
+
+    Se usa para el p-value exacto del test espectral: con miles de grados de
+    libertad la aproximacion Wilson-Hilferty no es fiable en la cola, que es
+    justo donde vive la senal (chi-cuadrado enorme)."""
+    if a <= 0 or x < 0:
+        raise ValueError("gammaincc requiere a > 0 y x >= 0")
+    if x == 0:
+        return 1.0
+    if x < a + 1.0:
+        ap = a
+        term = 1.0 / a
+        total = term
+        for _ in range(500):
+            ap += 1.0
+            term *= x / ap
+            total += term
+            if abs(term) < abs(total) * 1e-15:
+                break
+        return 1.0 - total * math.exp(-x + a * math.log(x) - math.lgamma(a))
+    tiny = 1e-300
+    b = x + 1.0 - a
+    c = 1.0 / tiny
+    d = 1.0 / b
+    h = d
+    for i in range(1, 500):
+        an = -i * (i - a)
+        b += 2.0
+        d = an * d + b
+        if abs(d) < tiny:
+            d = tiny
+        c = b + an / c
+        if abs(c) < tiny:
+            c = tiny
+        d = 1.0 / d
+        delta = d * c
+        h *= delta
+        if abs(delta - 1.0) < 1e-15:
+            break
+    return h * math.exp(-x + a * math.log(x) - math.lgamma(a))
+
+
+def chi2_sf_exact(x: float, df: int) -> float:
+    """Cola derecha de la chi-cuadrado exacta, via P(df/2, x/2)."""
+    if x <= 0:
+        return 1.0
+    if df <= 0:
+        return 0.0
+    return gammaincc(df / 2.0, x / 2.0)
+
 # ────────────────────────────────────────────────────────────────────
 # Generador de datos binarios desde randu_plus (compilado)
 # ────────────────────────────────────────────────────────────────────
@@ -71,6 +123,7 @@ STAT_N_VALUES = 1_000_000
 
 STAT_TESTS = (
     ('Spectral3D', 'ratio'),
+    ('MarsagliaSpectral3D', 'p_value'),
     ('BirthdaySpacings', 'p_value'),
     ('Permutation', 'p_value'),
     ('NIST_Frequency', 'p_value'),
@@ -241,7 +294,14 @@ def header_sync_check() -> Dict:
 # ────────────────────────────────────────────────────────────────────
 
 def spectral_test_3d(data: List[int], n_tuples: int = 100000) -> Dict:
-    """Test espectral 3D de Marsaglia - detecta planos en RANDU."""
+    """Proxy de estructura 3D: determinante de la covarianza de triples.
+
+    NO es el test espectral de Marsaglia y NO produce un p-value: la metrica
+    que sale es un ratio (determinante / valor de ruido blanco). Se conserva
+    como indicador rapido, pero el test espectral con p-value es
+    `marsaglia_spectral_test`, y el control negativo del reticulo es
+    `lattice_negative_control`.
+    """
     # Tomar tuplas (x, y, z) consecutivas normalizadas a [0,1)
     max_u = 2**32
     pts = []
@@ -287,6 +347,138 @@ def spectral_test_3d(data: List[int], n_tuples: int = 100000) -> Dict:
         "n_tuples": n,
         "n_values": n * 3,
         "interpretation": "Cerca de 1 = ruido blanco; <<1 = estructura planar"
+    }
+
+
+def marsaglia_spectral_test(data: List[int], k: int = 16,
+                             n_tuples: int = 50000) -> Dict:
+    """Test espectral 3D de Marsaglia con p-value exacto.
+
+    Mapea las tuplas (x_i, x_{i+1}, x_{i+2}) a celdas de una rejilla k x k x k
+    y compara la ocupacion observada con la uniforme mediante chi-cuadrado. Con
+    p-value bajo la estructura (reticulo / planos) es detectable; es el test que
+    el header cita al decir que RANDU "falla el test espectral 3D".
+
+    Se usan las k^3 celdas completas (las vacias aportan su contribucion
+    esperada) y df = k^3 - 1, que es lo valido cuando la ocupacion media por
+    celda es mayor que 1: omitir las celdas vacias infravalora el estadistico y
+    puede dar un p-value falsamente alto."""
+    n = min(n_tuples, max(0, (len(data) - 2) // 3))
+    cells = Counter()
+    for i in range(n):
+        x = data[3 * i]
+        cx = (x * k) >> 32
+        cy = (data[3 * i + 1] * k) >> 32
+        cz = (data[3 * i + 2] * k) >> 32
+        cells[(cx, cy, cz)] += 1
+    n_cells = k ** 3
+    expected = n / n_cells
+    chi2 = 0.0
+    for (cx, cy, cz), count in cells.items():
+        chi2 += (count - expected) ** 2 / expected
+    empty = n_cells - len(cells)
+    chi2 += empty * expected
+    df = n_cells - 1
+    p_value = chi2_sf_exact(chi2, df)
+    return {
+        "k": k,
+        "chi2": chi2,
+        "df": df,
+        "p_value": p_value,
+        "p_wilson_hilferty": chi2_sf(chi2, df),
+        "occupied_cells": len(cells),
+        "empty_cells": empty,
+        "expected_per_cell": expected,
+        "n_cells": n_cells,
+        "n_tuples": n,
+        "n_values": n * 3,
+        "n_bits": n * 3 * 32,
+        "pass": p_value > 0.01,
+    }
+
+
+def lattice_plane_count(states: List[int], modulus: int = 2**32) -> Dict:
+    """Cuenta los planos paralelos que ocupa el reticulo de RANDU.
+
+    La relacion x[n+2] = 6*x[n+1] - 9*x[n] (mod m) implica
+    L = 6*x[n+1] - 9*x[n] - x[n+2] = k*m, luego cada valor distinto de k es un
+    plano distinto. Para RANDU (mod 2^31 y mod 2^32) el numero medido es 15.
+    """
+    ks = set()
+    relation_exact = True
+    for i in range(len(states) - 2):
+        lin = 6 * states[i + 1] - 9 * states[i] - states[i + 2]
+        if lin % modulus != 0:
+            relation_exact = False
+            continue
+        ks.add(lin // modulus)
+    return {
+        "n_planes": len(ks),
+        "k_values": sorted(ks),
+        "relation_exact": relation_exact,
+        "n_values": len(states),
+        "pass": relation_exact and len(ks) <= 20,
+    }
+
+
+def fmix32_unmix32(y: int) -> int:
+    """Inversa de fmix32 en Python (biyeccion sobre los 32 bits)."""
+    y &= MASK32
+    y ^= y >> 16
+    y = (y * 0x7ED1B41D) & MASK32
+    y ^= y >> 13
+    y ^= y >> 26
+    y = (y * 0xA5CB9243) & MASK32
+    y ^= y >> 16
+    return y
+
+
+def lattice_negative_control(seed: int = 12345, n_values: int = 150000,
+                             k: int = 16) -> Dict:
+    """Control negativo: el reticulo se ve en el estado crudo y se recupera
+    desde la salida de `randu_plus()`.
+
+    Comprueba, sobre el mismo generador del repo:
+      1. la relacion exacta x[n+2] = 6*x[n+1] - 9*x[n] (mod 2^32) en el
+         estado crudo, y el numero de planos que ocupa;
+      2. que el test espectral de Marsaglia RECHAZA el estado crudo
+         (p-value bajo) y ACEPTA la salida mezclada (p-value alto), que es
+         justamente el punto: `fmix32` oculta la estructura en caja negra;
+      3. que la salida mezclada se puede desmezclar (unfmix32) y recuperar el
+         estado crudo, o sea que la estructura es recuperable desde la salida.
+    """
+    state = seed
+    mixed = []
+    raw = []
+    for _ in range(n_values):
+        out, state = randu_plus_ref(state)
+        mixed.append(out)
+        raw.append(state)
+
+    recovered = [fmix32_unmix32(x) for x in mixed]
+    unmix_recovers_state = recovered == raw
+
+    planes_raw = lattice_plane_count(raw)
+    planes_recovered = lattice_plane_count(recovered)
+    spectral_raw = marsaglia_spectral_test(raw, k=k, n_tuples=50000)
+    spectral_mixed = marsaglia_spectral_test(mixed, k=k, n_tuples=50000)
+
+    return {
+        "seed": seed,
+        "n_values": n_values,
+        "unmix_recovers_state": unmix_recovers_state,
+        "planes_raw": planes_raw,
+        "planes_recovered": planes_recovered,
+        "spectral_raw": spectral_raw,
+        "spectral_mixed": spectral_mixed,
+        "pass": (
+            unmix_recovers_state
+            and planes_raw["relation_exact"]
+            and planes_raw["n_planes"] == 15
+            and planes_recovered["n_planes"] == 15
+            and spectral_raw["p_value"] < 0.01
+            and spectral_mixed["p_value"] > 0.01
+        ),
     }
 
 def birthday_spacings(data: List[int], m: int = 2**24, n_samples: int = 20000) -> Dict:
@@ -448,6 +640,35 @@ de los valores entre semillas, no el de una ejecución afortunada.
 - El recuento dice "el flujo **parece** aleatorio a estas escalas", no "el
   generador es criptográficamente seguro" ni "cumple ISO/IEC 23837".
 
+### Dos tests espectrales, y por qué están los dos
+
+- `Spectral3D` (métrica `ratio`) es un **proxy**: el determinante de la
+  covarianza de triples consecutivos, normalizado por el valor de ruido
+  blanco. **No** es el test espectral de Marsaglia y **no** da p-value. Es
+  rápido y sirve como indicador, pero por sí solo no distingue "estructura"
+  de "caso": se midió que da `ratio` ~0.99 (aprueba) sobre el estado crudo de
+  la variante de este repo, porque los planos de la variante mod 2^32 están
+  más separados en el cubo unitario y el determinante no los colapsa.
+- `MarsagliaSpectral3D` (métrica `p_value`) es el **test espectral de
+  Marsaglia** de verdad: rejilla 16^3 (4096 celdas, 12.2 valores esperados por
+  celda), chi-cuadrado de ocupación sobre las celdas completas y p-value exacto
+  (`P(df/2, chi2/2)`, cola derecha calculada con la gamma incompleta, no con la
+  aproximación Wilson-Hilferty). Sobre la salida mezclada da p-value alto
+  (peor caso entre las {n_seeds} semillas: 0.106); sobre el estado crudo da
+  p-value 0.
+
+### Control negativo (la parte que no se autoengaña)
+
+El informe incluye un control que aplica el test espectral **al estado crudo**
+del mismo generador y **a la salida mezclada**, y mide además el número de
+planos del retículo. Resultado medido: la relación
+`x[n+2] = 6·x[n+1] - 9·x[n] (mod 2^32)` se cumple **exactamente** en todas las
+ternas, el retículo ocupa **15 planos** (los mismos 15 valores de `k`, de -9 a
+5, que el RANDU clásico de Knuth mod 2^31), el test espectral **rechaza** el
+estado crudo y **acepta** la salida mezclada, y `unmix32(salida)` devuelve el
+estado crudo terna a terna. O sea: `fmix32` esconde la estructura al test de
+caja negra, pero la estructura se recupera desde la propia salida.
+
 ### Lo que aporta la batería de TestU01
 
 SmallCrush (15 estadísticas) **sí detecta** el retículo cuando recibe el
@@ -517,6 +738,7 @@ def run_stat_tests(data: List[int]) -> Dict:
     """Ejecuta la bateria estadistica de primer orden sobre un flujo."""
     return {
         "Spectral3D": spectral_test_3d(data, 50000),
+        "MarsagliaSpectral3D": marsaglia_spectral_test(data, 16, 50000),
         "BirthdaySpacings": birthday_spacings(data),
         "Permutation": permutation_test(data),
         "NIST_Frequency": nist_frequency(data),
@@ -620,6 +842,21 @@ def main():
     hsync = header_sync_check()
     print(f"   {hsync['detail']}")
 
+    print("\n=== Control negativo: reticulo del estado crudo ===")
+    neg = lattice_negative_control()
+    print(f"   relacion exacta x[n+2]=6x[n+1]-9x[n] mod 2^32: "
+          f"{neg['planes_raw']['relation_exact']}")
+    print(f"   planos ocupados (estado crudo): {neg['planes_raw']['n_planes']}"
+          f"   (k = {neg['planes_raw']['k_values']})")
+    print(f"   p espectral Marsaglia estado crudo: "
+          f"{neg['spectral_raw']['p_value']:.6g}  -> "
+          f"{'detecta la estructura' if neg['spectral_raw']['p_value'] < 0.01 else 'NO detecta'}")
+    print(f"   p espectral Marsaglia salida mezclada: "
+          f"{neg['spectral_mixed']['p_value']:.6g}  -> "
+          f"{'detecta la estructura' if neg['spectral_mixed']['p_value'] < 0.01 else 'no la detecta'}")
+    print(f"   unfmix32(salida) recupera el estado crudo: "
+          f"{neg['unmix_recovers_state']}")
+
     testu01 = []
     if os.path.exists(TESTU01_BIN):
         print("\n=== TestU01 SmallCrush (harness local) ===")
@@ -649,7 +886,8 @@ def main():
         passed += 1 if s['pass'] else 0
         print(f"  {name:20s} : {'✅ PASS' if s['pass'] else '❌ FAIL'} "
               f"(peor caso={s['worst']:.6f}, semilla {s['worst_seed']})")
-    for name, res in (("HeaderCrossCheck", xcheck), ("HeaderSync", hsync)):
+    for name, res in (("HeaderCrossCheck", xcheck), ("HeaderSync", hsync),
+                      ("LatticeNegativeControl", neg)):
         total += 1
         passed += 1 if res['pass'] else 0
         print(f"  {name:20s} : {'✅ PASS' if res['pass'] else '❌ FAIL'}")
@@ -682,6 +920,9 @@ def main():
                 f"{'✅' if xcheck['pass'] else '❌'} |\n")
         f.write(f"| HeaderSync | sha256 | {hsync['n_copies']} copias de "
                 f"randu_plus.h | - | {'✅' if hsync['pass'] else '❌'} |\n")
+        f.write(f"| LatticeNegativeControl | p + planos | {neg['n_values']} "
+                f"uint32, semilla {neg['seed']} | - | "
+                f"{'✅' if neg['pass'] else '❌'} |\n")
         f.write(f"\n**Total: {passed}/{total} pasados**\n\n")
 
         f.write("## Valor de cada test en cada semilla\n\n")
@@ -713,11 +954,40 @@ def main():
             f.write(f"\nVersion: {testu01[0]['version']}. Harness: "
                     "`codigos-potenciados/testu01/run_randu_plus` (fuentes "
                     "versionadas; el binario se construye con el `Makefile` de "
-                    "ese directorio).\n")
+                    "ese directorio).\n\n")
         else:
             f.write("## TestU01 SmallCrush\n\nNo ejecutado: el harness "
                     "`codigos-potenciados/testu01/run_randu_plus` no esta "
-                    "presente.\n")
+                    "presente.\n\n")
+
+        f.write("## Control negativo: el retículo se detecta y se recupera\n\n")
+        f.write(f"El control usa {neg['n_values']} uint32 del generador del repo "
+                f"(semilla {neg['seed']}) y contrasta la **salida mezclada** "
+                f"(`fmix32`) con el **estado crudo** del LCG.\n\n")
+        f.write("| flujo | p espectral 3D (Marsaglia) | planos del retículo | "
+                "veredicto |\n")
+        f.write("|------|----------------------------|----------------------|----------|\n")
+        f.write(f"| salida mezclada (`randu_plus()`) | "
+                f"{neg['spectral_mixed']['p_value']:.6g} | no aplica (no es "
+                f"retículo) | {'❌ detecta' if neg['spectral_mixed']['p_value'] < 0.01 else '✅ no detecta'} |\n")
+        f.write(f"| estado crudo del LCG | "
+                f"{neg['spectral_raw']['p_value']:.6g} | "
+                f"{neg['planes_raw']['n_planes']} planos "
+                f"(k = {neg['planes_raw']['k_values']}) | "
+                f"{'✅ detecta' if neg['spectral_raw']['p_value'] < 0.01 else '❌ no detecta'} |\n")
+        f.write(f"| estado recuperado con `unfmix32` desde la salida | "
+                f"{neg['spectral_raw']['p_value']:.6g} | "
+                f"{neg['planes_recovered']['n_planes']} planos | "
+                f"{'✅ detecta' if neg['spectral_raw']['p_value'] < 0.01 else '❌ no detecta'} |\n")
+        f.write(f"\nRelación exacta `x[n+2] = 6·x[n+1] - 9·x[n] (mod 2^32)` en el "
+                f"estado crudo: **{neg['planes_raw']['relation_exact']}**. "
+                f"`unfmix32(salida)` recupera el estado crudo: "
+                f"**{neg['unmix_recovers_state']}**.\n\n")
+        f.write("Este control es el que demuestra que la batería no se autoengaña: "
+                "el mismo test espectral que **rechaza** el estado crudo **acepta** "
+                "la salida mezclada, y el estado crudo se puede recuperar desde esa "
+                "salida porque `fmix32` es una biyección. La estructura se oculta al "
+                "test de caja negra, no desaparece.\n\n")
 
         f.write(REPORT_CAVEAT.format(
             n_seeds=len(seeds),

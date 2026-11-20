@@ -56,9 +56,9 @@ copias deben quedar **byte a byte idénticas** y el validador lo comprueba.
 ### Validación estadística
 
 `randu_plus_validator.py` compila un driver contra el header real del repo y
-mide el flujo de bits con una batería de tests estándar (espectro 3D,
-espaciado de cumpleaños, permutaciones, frecuencia monobit, frecuencia por
-bloques y rachas):
+mide el flujo de bits con una batería de tests estándar (espectro 3D de
+Marsaglia con p-value, espaciado de cumpleaños, permutaciones, frecuencia
+monobit, frecuencia por bloques y rachas):
 
 ```bash
 python3 randu_plus_validator.py        # regenera VALIDATION_REPORT.md
@@ -68,10 +68,13 @@ El barrido usa **8 semillas impares distintas** y el criterio de paso es el
 **peor caso entre semillas** (el mínimo de los p-values), no el de una
 ejecución afortunada. El informe (`VALIDATION_REPORT.md`) documenta el consumo
 real de muestras de cada test y sus límites: los tests de primer orden **no**
-detectan el retículo de RANDU. Para eso está la batería de TestU01
-(SmallCrush), que sí lo detecta cuando recibe el estado crudo, y el test
-incluido en `randu_plus.c`, que verifica biyectividad, período real y
-recuperación del retículo.
+detectan el retículo de RANDU por sí solos. Para eso están la batería de
+TestU01 (SmallCrush), que sí lo detecta cuando recibe el estado crudo, y el
+**control negativo** `LatticeNegativeControl`, que aplica el test espectral de
+Marsaglia al estado crudo (p-value 0, retículo de **15 planos**) y a la salida
+mezclada (p-value 0.919), y comprueba que `unmix32(salida)` devuelve el estado
+crudo terna a terna. El test incluido en `randu_plus.c` verifica además
+biyectividad, período real y recuperación del retículo.
 
 El harness de TestU01 está en `codigos-potenciados/testu01/` (fuentes y
 `Makefile`; los binarios no se versionan). Requiere TestU01 instalado:
