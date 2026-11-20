@@ -2,6 +2,8 @@
 
 **Estudio, no homologacion.** Mide el flujo de bits de `msws64`, `hybrid_prng` y del híbrido LCG+msws64 con la misma bateria que usa `randu_plus_validator.py`, y la acompaña de dos controles: uno limpio (`/dev/urandom`, que debe comportarse como un generador ideal) y uno defectuoso (el estado crudo de `randu_plus`, que debe fallar). No es TestU01 ni PractRand: TestU01 real no esta instalado en este entorno y el harness versionado solo cubre `randu_plus`.
 
+**Que se midio exactamente:** el modulo `msws64/` NO implementa el msws64 de Widynski (2017), sino una cadena de multiplicacion-xorshift de 3 rondas. Las cifras de este informe corresponden a ese generador realmente implementado. La referencia canonica de Widynski (`codigos-potenciados/msws64/msws64_widynski.h`) no se mide aqui.
+
 **Semillas:** 12345, 1, 3, 7, 4242, 65537, 99991, 2147483647 (8 semillas)
 **Muestra por semilla:** 500000 uint64 = 1000000 uint32 (palabras de 32 bits NO solapadas, en el orden de bytes que ve un consumidor)
 **Comparaciones:** 56 p-values por generador (7 tests x 8 semillas)
@@ -37,7 +39,7 @@
 
 | Flujo | p < 0.01 | p < 0.001 | comparaciones | veredicto |
 |---|---|---|---|---|
-| /dev/urandom (control limpio) | 1 | 0 | 56 | referencia |
+| /dev/urandom (control limpio) | 0 | 0 | 56 | referencia |
 | msws64 | 0 | 0 | 56 | ✅ sin señal |
 | hybrid_prng | 1 | 0 | 56 | ✅ sin señal |
 | lcg_msws64 | 0 | 0 | 56 | ✅ sin señal |
@@ -46,7 +48,6 @@
 
 | Flujo | Test | semilla | p-value | veces observado |
 |---|---|---|---|---|
-| /dev/urandom | NIST_BlockFreq | 12345 | 0.00225741 | 1 |
 | hybrid_prng | NIST_BlockFreq | 65537 | 0.00757203 | 1 |
 
 ## Notas de calibracion (medidas en este entorno)
@@ -54,18 +55,19 @@
 - El test espectral de Marsaglia usa **200000 tuplas** (no 50000): con 50000 tuplas la ocupacion media por celda de la rejilla 16^3 es 12,2 y el p-value fluctua mucho. Medido sobre el MISMO flujo (lcg+msws64, semilla 3): p=0.000432 con 50000 tuplas y p=0.0751181 con 200000. El FAIL de 0.00043 era ruido del test, no un defecto del generador.
 - El FAIL de `NIST_BlockFreq` en `hybrid_prng` (semilla 65537, p=0.00757203) es **reproducible**: sale con el mismo valor en corridas independientes. Queda registrado como senal marginal dentro del presupuesto de falsos positivos (1 de 56 frente a 0.56 esperados), no como prueba de defecto.
 - `hybrid_prng` combina el XOR de una secuencia middle-square de 4 digitos decimales con `msws64`; la parte middle-square aporta solo ~13,3 bits por palabra, asi que su mitad superior hereda esa limitacion aunque el XOR con msws64 la disperse. Para uso criptografico o de simulacion de Monte Carlo de alta exigencia, usar `msws64` puro.
+- El nombre `msws64` es historico: el algoritmo implementado es una cadena de multiplicacion-xorshift de 3 rondas, NO el msws64 de Widynski (2017). Su periodo no esta verificado (solo se comprobo que no repite en las primeras 100000 muestras) y el sumidero 0 se evita forzando semilla impar.
 
 ## Control de calibracion: /dev/urandom (debe aprobar)
 
 | Test | metrica | peor caso | pass |
 |---|---|---|---|
-| Spectral3D | ratio | 0.994557 | ✅ |
-| MarsagliaSpectral3D | p_value | 0.252617 | ✅ |
-| BirthdaySpacings | p_value | 0.0354213 | ✅ |
-| Permutation | p_value | 0.117718 | ✅ |
-| NIST_Frequency | p_value | 0.169251 | ✅ |
-| NIST_BlockFreq | p_value | 0.00225741 | ❌ |
-| NIST_Runs | p_value | 0.022494 | ✅ |
+| Spectral3D | ratio | 0.987164 | ✅ |
+| MarsagliaSpectral3D | p_value | 0.044677 | ✅ |
+| BirthdaySpacings | p_value | 0.0599636 | ✅ |
+| Permutation | p_value | 0.328098 | ✅ |
+| NIST_Frequency | p_value | 0.0845298 | ✅ |
+| NIST_BlockFreq | p_value | 0.0223086 | ✅ |
+| NIST_Runs | p_value | 0.0907689 | ✅ |
 
 ## Control negativo: estado crudo de randu_plus (debe fallar)
 

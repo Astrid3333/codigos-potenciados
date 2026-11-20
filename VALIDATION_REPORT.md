@@ -4,8 +4,8 @@
 
 **Semillas:** 12345, 1, 3, 7, 4242, 65537, 99991, 2147483647 (8 semillas impares distintas)
 **Muestra por semilla:** 1000000 uint32 (4.0 MB)
-**Fecha:** Fri Nov 20 02:23:57 AM -03 2026
-**Git commit:** 2fdd101ee41f3b6f882ff83b5e692afa01e11d7a
+**Fecha:** Fri Nov 20 11:43:02 AM -03 2026
+**Git commit:** ac34dd000f7b97e89b1ff28c6813676c333e22c7
 
 ## Resultados (peor caso entre semillas)
 
@@ -93,7 +93,8 @@ de los valores entre semillas, no el de una ejecución afortunada.
   de RANDU ni un periodo corto. El periodo real del generador es **2^30** y el
   retículo es recuperable por la recurrencia `x[n+2] = 6·x[n+1] - 9·x[n]`;
   eso está documentado en `randu_plus.h`, que recomienda explícitamente
-  `msws64/` o `hybrid_prng/` para uso real.
+  `msws64/` o `hybrid_prng/` para uso real (el módulo `msws64/` es un
+  generador de 64 bits mult-xorshift; **no** es el msws64 de Widynski).
 - `fmix32` (el post-proceso de MurmurHash) es una **biyección**: reordena los
   estados de RANDU pero no añade entropía ni rompe el retículo.
 - El recuento dice "el flujo **parece** aleatorio a estas escalas", no "el
@@ -135,7 +136,8 @@ SmallCrush (15 estadísticas) **sí detecta** el retículo cuando recibe el
 p-value ~0. En modo `fmix` (la salida de `randu_plus()`) **pasan las 15** en
 las 8 semillas medidas. Es decir: `fmix32` borra la estructura
 *observable* en caja negra, pero no la elimina (fmix32 es invertible) y el
-periodo sigue siendo 2^30. Para uso real, `msws64/` o `hybrid_prng/`.
+periodo sigue siendo 2^30. Para uso real, `msws64/` o `hybrid_prng/` (el
+generador de 64 bits del módulo `msws64/`; **no** es el msws64 de Widynski).
 
 El harness de TestU01 está **versionado** en `codigos-potenciados/testu01/`
 (fuentes y `Makefile`); los binarios `run_randu_plus` y `lattice_recovery` no se

@@ -26,7 +26,7 @@ __extension__ typedef unsigned __int128 lcg_uint128_t;
 #define M_PI 3.14159265358979323846
 #endif
 
-/* ---------- msws64 (Widynski 2017) ---------- */
+/* ---------- generador de 64 bits (mult-xorshift; NO es el msws64 de Widynski) ---------- */
 static uint64_t msws64_next(uint64_t *state) {
     *state *= 6364136223846793005ULL;
     *state ^= *state >> 17;

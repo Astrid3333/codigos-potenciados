@@ -5,9 +5,15 @@ Reutiliza la bateria ya escrita y depurada de `randu_plus_validator.py`
 permutaciones y tests NIST de primer orden) y la aplica a los generadores de
 64 bits del repo:
 
-  - `msws64`      -> codigos-potocados/msws64/msws64.h
+  - `msws64`      -> codigos-potenciados/msws64/msws64.h
   - `hybrid_prng` -> codigos-potenciados/hybrid_prng/hybrid_prng.h
   - `lcg+msws64`  -> codigos-potenciados/lcg_lehmer/ (hybrid_lcg_msws_next)
+
+OJO: el modulo `msws64/` NO implementa el msws64 de Widynski (2017), sino una
+cadena de multiplicacion-xorshift de 3 rondas. Las medidas de este script
+corresponden al generador realmente implementado. La referencia canonica de
+Widynski esta en `codigos-potenciados/msws64/msws64_widynski.h` y no se mide
+aqui.
 
 Incluye un CONTROL NEGATIVO: el estado crudo de `randu_plus`, que sabemos
 roto (15 planos, p-value ~0). Si la bateria no lo detecta, la bateria no sirve
@@ -269,6 +275,12 @@ def write_report(results: Dict, control: Dict, clean: Dict, path: str) -> None:
                 "`randu_plus`, que debe fallar). No es TestU01 ni PractRand: "
                 "TestU01 real no esta instalado en este entorno y el harness "
                 "versionado solo cubre `randu_plus`.\n\n")
+        f.write("**Que se midio exactamente:** el modulo `msws64/` NO implementa el "
+                "msws64 de Widynski (2017), sino una cadena de multiplicacion-"
+                "xorshift de 3 rondas. Las cifras de este informe corresponden a "
+                "ese generador realmente implementado. La referencia canonica de "
+                "Widynski (`codigos-potenciados/msws64/msws64_widynski.h`) no se "
+                "mide aqui.\n\n")
         f.write(f"**Semillas:** {', '.join(str(s) for s in results['msws64']['seeds'])}"
                 f" (8 semillas)\n")
         f.write(f"**Muestra por semilla:** {results['msws64']['n_values_u64']} uint64 "
@@ -340,6 +352,11 @@ def write_report(results: Dict, control: Dict, clean: Dict, path: str) -> None:
                 "esa limitacion aunque el XOR con msws64 la disperse. Para uso "
                 "criptografico o de simulacion de Monte Carlo de alta exigencia, "
                 "usar `msws64` puro.\n")
+        f.write("- El nombre `msws64` es historico: el algoritmo implementado es "
+                "una cadena de multiplicacion-xorshift de 3 rondas, NO el msws64 "
+                "de Widynski (2017). Su periodo no esta verificado (solo se "
+                "comprobo que no repite en las primeras 100000 muestras) y el "
+                "sumidero 0 se evita forzando semilla impar.\n")
 
         f.write('\n## Control de calibracion: /dev/urandom (debe aprobar)\n\n')
         f.write('| Test | metrica | peor caso | pass |\n|---|---|---|---|\n')

@@ -23,9 +23,10 @@ descubierto por Marsaglia 1968).
 ### 2. Prueba de período
 Verifica si el LCG alcanza su período máximo posible.
 
-### 3. Híbrido LCG + msws64
-Combina LCG con msws64 (Widynski 2017) mediante XOR para obtener buena
-distribución sin depender de un solo mecanismo.
+### 3. Híbrido LCG + generador de 64 bits
+Combina LCG con el generador de 64 bits del módulo `msws64/` (cadena de
+multiplicación-xorshift; **no** es el msws64 de Widynski) mediante XOR para
+obtener buena distribución sin depender de un solo mecanismo.
 
 ### 4. TCR-LCG
 Teorema Chino del Resto aplicado a LCG: el contador se lleva como restos

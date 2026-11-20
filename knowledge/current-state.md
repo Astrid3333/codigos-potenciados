@@ -1,10 +1,37 @@
 # Current State
 
-- Goal: **ciclo 19** — medir con evidencia los generadores de 64 bits del repo
+- Goal: **ciclo 20** — corregir la atribución falsa de `msws64` (el módulo NO es
+  el msws64 de Widynski 2017) y declarar que su período no está verificado.
+- Stage: **ciclo 20 cerrado y verificado** (nota completa en `notes/2026-11-20.md`).
+  - **Hecho medido**: el módulo `codigos-potXAld/matematica_ancestral/msws64.h`
+    es una cadena de multiplicación-xorshift de 3 rondas (salida = estado); el
+    msws64 canónico de Widynski es xorshift 12/25/27 + multiplicador
+    `0x2545F4914F6CDD1D`. **5 de 5 iteraciones difieren desde la primera**
+    (C: `/tmp/opencode/wid_check.c`). El error venía de una sesión anterior
+    (pasted-15.txt) que presentó esas constantes como "Widynski 2017" sin
+    compararlas.
+  - **Cambios**: nuevo `msws64_widynski.h` (referencia canónica);
+    `msws64.h`/`msws64.c` honestos (el test compara y muestra las diferencias;
+    "periodo" → no verificado); README de `msws64/`, README raíz,
+    `hybrid_prng/{README.md,hybrid_prng.h}`, `lcg_lehmer/{README.md,lcg_lehmer.c,lcg_lehmer.h}`,
+    `middle_square/README.md`, ambas copias de `randu_plus.h`;
+    `prng_modules_validator.py` y `randu_plus_validator.py` declaran en los
+    informes **qué se midió exactamente**.
+  - **Verificación**: `msws64.c` con `-Werror` OK; `hybrid_prng_test` PASS;
+    `lcg_lehmer_test` (RANDU 15 planos, MINSTD 764 planos); `middle_square_test`
+    17/17; `prng_modules_validator.py` → PASS (msws64 0/56, hybrid_prng 1/56
+    p=0.00757203, LCG+msws64 0/56, control limpio 0/56, control negativo
+    15 planos / crudo p=0.0 / unmix=True); `randu_plus_validator.py` → **10/10**;
+    `ruff` limpio en `prng_modules_validator.py`.
+  - **Período de RANDU**: verificado matemáticamente (orden multiplicativo de
+    65539: exactamente 2^30 mod 2^32, 2^29 mod 2^31), no por fuerza bruta.
+  - **Pendiente**: `hybrid_prng/hybrid_prng.c:7` (WIP ajeno, sigue atribuyendo a
+    Widynski) y `bench/prng_bench.c:8` (untracked) → corregir cuando el usuario
+    libere esos archivos; push de este ciclo pendiente de confirmación.
+- Goal anterior: **ciclo 19** — medir con evidencia los generadores de 64 bits del repo
   (`msws64`, `hybrid_prng`, híbrido LCG+msws64) con la misma batería que
   `randu_plus_validator.py`, y con controles limpio (`/dev/urandom`) y
   defectuoso (estado crudo de `randu_plus`).
-- Stage: **ciclo 19 cerrado y verificado** (nota completa en `notes/2026-11-20.md`).
   - **Nuevo**: `prng_modules_validator.py` (compila drivers C para los tres
     módulos, 8 semillas × 7 tests = 56 p-values por generador, 1M uint32 por
     semilla, descomposición natural little-endian) → `VALIDATION_REPORT_PRNG_MODULES.md`.

@@ -1,7 +1,14 @@
 # hybrid_prng - Generador PRNG híbrido moderno (C11)
 
 Combina **middle-square de von Neumann** (componente histórico, 4 dígitos) con
-**msws64 de Widynski** (estado 64 bits, fuente principal de entropía).
+el **generador de 64 bits del módulo `msws64/`** (cadena de multiplicación-
+xorshift de 3 rondas, fuente principal de entropía).
+
+> **Corrección (2026-11-20).** Antes este README (y la cabecera) atribuían el
+> generador de 64 bits a Widynski (2017). **No lo es**: el msws64 de Widynski
+> es un xorshift 12/25/27 con multiplicador `0x2545F4914F6CDD1D`, disponible
+> como referencia en `../msws64/msws64_widynski.h`. Las dos implementaciones
+> difieren desde la primera iteración.
 
 ## ¿Por qué un híbrido?
 
@@ -10,11 +17,12 @@ Middle-square de von Neumann (1946) está **roto como PRNG independiente**:
 - 18.18% de las semillas colapsan a cero
 - Ciclos muy cortos
 
-msws64 (2017) es un PRNG decente de 64 bits por sí solo.
+El generador de 64 bits es un PRNG decente de 64 bits por sí solo.
 
 El híbrido **XOR** de ambos produce una secuencia con buena distribución
 estadística sin depender exclusivamente de un solo mecanismo. middle-square
-aporta estructura determinista predecible; msws64 aporta entropía de 64 bits.
+aporta estructura determinista predecible; el generador de 64 bits aporta
+entropía de 64 bits.
 
 ## Estructura
 
@@ -76,17 +84,19 @@ Uso practico: generar IDs de 64 bits (ej. IDs de transaccion):
 
 ## Integración con el resto del proyecto
 
-- `codigos-potenciados/msws64/` — generador msws64 puro (componente del híbrido)
+- `codigos-potenciados/msws64/` — generador de 64 bits puro (componente del híbrido)
 - `codigos-potenciados/goertzel/` — algoritmo Goertzel con formulaciones K, α, β, híbrida
 - `codigos-potenciados/randu_plus.c` — RANDU + fmix32
 
 ## Limitaciones
 
 middle-square **original** sigue roto como PRNG independiente. Este híbrido
-no "arregla" middle-square; lo usa como componente mezclado con msws64.
-Para un PRNG puro y usable, usa msws64 directamente (`codigos-potenciados/msws64/`).
+no "arregla" middle-square; lo usa como componente mezclado con el generador
+de 64 bits.
+Para un PRNG puro y usable, usa el módulo `codigos-potenciados/msws64/`.
 
 ## Referencia
 
 - J. von Neumann, "Various techniques used in connection with random digits" (1946/1951)
-- M. Widynski, "Middle Square Weyl Sequence PRNG" (2017)
+- M. Widynski, "Middle Square Weyl Sequence PRNG" (2017) — **referencia del
+  msws64 canónico**, que este módulo no implementa (ver la corrección arriba)

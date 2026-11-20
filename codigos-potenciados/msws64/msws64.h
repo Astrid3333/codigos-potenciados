@@ -4,13 +4,34 @@
 #include <stdint.h>
 
 /*
- * msws64.h - Generador PRNG Widynski msws64 (2017)
+ * msws64.h - Generador PRNG de 64 bits: multiplicacion + xorshift (3 rondas)
  *
- * Generador de numeros pseudoaleatorios de 64 bits basado en
- * multiplicacion por constantes impares y desplazamientos xorshift.
+ * CORRECCION IMPORTANTE (2026-11-20): este generador NO es el "msws64" de
+ * Widynski (2017). El msws64 de Widynski es un xorshift de 64 bits con
+ * desplazamientos 12/25/27 y una multiplicacion final por 0x2545F4914F6CDD1D;
+ * su implementacion canonica esta en "msws64_widynski.h" (mismo directorio).
+ * Los dos generadores producen salidas distintas desde la primera iteracion
+ * (comprobado en msws64.c).
+ *
+ * El nombre del modulo se conserva porque lcg_lehmer, hybrid_prng y
+ * middle_square lo usan, pero la atribucion que aparecia antes en esta
+ * cabecera era incorrecta y ya no debe repetirse en ningun documento.
+ *
+ * Algoritmo realmente implementado (estado de 64 bits; la salida ES el estado):
+ *   s  = s * 6364136223846793005
+ *   s ^= s >> 17
+ *   s  = s * 1442695040888963407
+ *   s ^= s >> 31
+ *   s  = s * 3141592653589793239
+ *   s ^= s >> 27
+ *   salida = s
  *
  * Estado: 64 bits (un solo uint64_t).
- * Periodo: ~2^64.
+ * Periodo: NO VERIFICADO. Esta cadena de multiplicacion-xorshift de 3 rondas
+ *   no tiene un periodo 2^64 demostrado (no es un LCG con orden conocido):
+ *   solo se ha comprobado que no repite en las primeras 100000 muestras.
+ * Sumidero 0: la semilla 0 quedaria fija en 0; por eso la siembra fuerza
+ *   estado impar (seed | 1).
  * Velocidad: ~1.8 ns por iteracion.
  *
  * Uso:

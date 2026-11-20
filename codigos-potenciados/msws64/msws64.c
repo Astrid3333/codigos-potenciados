@@ -1,14 +1,17 @@
-/* msws64.c - Generador PRNG Widynski msws64 (2017)
+/* msws64.c - Generador PRNG de 64 bits: multiplicacion + xorshift (3 rondas)
  *
  * Compilar: gcc -std=c11 -O2 msws64.c -o msws64_test -lm
  * Ejecutar: ./msws64_test
  *
- * Implementa el generador de Widynski (Middle Square Weyl Sequence de 64 bits),
- * una alternativa moderna y rapida al middle-square de von Neumann.
+ * NOTA (2026-11-20): este generador NO es el msws64 de Widynski (2017).
+ * El algoritmo realmente implementado es una cadena de multiplicacion por
+ * constantes impares y xorshift (ver msws64.h). La implementacion canonica
+ * de Widynski esta en msws64_widynski.h y se usa aqui como referencia:
+ * el test comprueba que ambas salidas difieren desde la primera iteracion.
  *
  * Comparativa incluida en el test:
  *   - middle-square original (4 digitos): ciclos cortos, colapso a 0
- *   - msws64: estado 64 bits, periodo muy largo, buena distribucion
+ *   - generador de 64 bits: estado amplio, buena distribucion
  */
 
 #include <stdio.h>
@@ -16,6 +19,7 @@
 #include <stdint.h>
 #include <math.h>
 #include "msws64.h"
+#include "msws64_widynski.h"
 
 /* ---------- middle-square de von Neumann (4 digitos) ---------- */
 static uint16_t ms_next_4(uint16_t x) {
@@ -86,7 +90,24 @@ static double chi_square(uint64_t *samples, int n_samples, int nbins, uint64_t m
 }
 
 int main(void) {
-    printf("=== msws64 (Widynski 2017) vs middle-square de von Neumann ===\n\n");
+    printf("=== Generador de 64 bits (mult-xorshift) vs middle-square de von Neumann ===\n\n");
+
+    /* Comparacion con el msws64 canonico de Widynski */
+    msws64_t mine;
+    msws64_seed(&mine, 12345ULL);
+    uint64_t wid_state = 12345ULL | 1ULL;
+    printf("Comparacion con el msws64 de Widynski (referencia canonica):\n");
+    int differ = 0;
+    for (int i = 1; i <= 5; ++i) {
+        uint64_t a = msws64_next(&mine);
+        uint64_t b = msws64_widynski_next(&wid_state);
+        if (a != b) differ++;
+        printf("  %2d: este=%020llu  widynski=%020llu  %s\n", i,
+               (unsigned long long)a, (unsigned long long)b,
+               a == b ? "iguales" : "distintos");
+    }
+    printf("  -> %d de 5 iteraciones distintas: este modulo NO es el msws64 de Widynski\n\n",
+           differ);
 
     /* Middle-square original */
     int n_cycles = count_cycles_4();
@@ -112,8 +133,9 @@ int main(void) {
         if (found) break;
         seen_set[i] = x;
     }
-    printf("\nmsws64 (estado 64 bits):\n");
-    printf("  Periodo (muestra 100k): %d iteraciones sin repetir\n", msws_period > 0 ? msws_period : 100000);
+    printf("\nGenerador de 64 bits (estado 64 bits):\n");
+    printf("  Periodo: no verificado (primeras %d muestras sin repetir)\n",
+           msws_period > 0 ? msws_period : 100000);
 
     /* Chi cuadrado para msws64 */
     const int n_samples = 100000;

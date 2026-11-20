@@ -62,9 +62,10 @@ decorativa: el módulo cuantifica la diferencia.
 
 ## Comparación con `msws64`
 
-- `msws64` (`../msws64/msws64.h`) es un multiplicador congruencial lineal de
-  64 bits con xorshift: periodo del orden de 2⁶⁴ y distribución uniforme
-  (χ² = 9,78 con 100000 muestras).
+- `msws64` (`../msws64/msws64.h`) es una cadena de multiplicación-xorshift de
+  3 rondas con estado de 64 bits: distribución uniforme (χ² = 9,78 con 100000
+  muestras). **No** es el msws64 de Widynski (2017) y su período no está
+  verificado; el χ² con 10 bins es una comprobación débil.
 - `msws64.c` contiene además una copia **estática** (no exportada) de este
   generador, `ms_next_4`, con exactamente el mismo criterio de dígitos
   centrales. El test la replica y verifica que las dos implementaciones

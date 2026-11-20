@@ -7,10 +7,11 @@
  * hybrid_prng.h - Generador PRNG híbrido moderno (C11)
  *
  * Combina middle-square de von Neumann (componente histórico, 4 dígitos)
- * con msws64 de Widynski (estado 64 bits).
+ * con el generador de 64 bits del módulo msws64/ (cadena de
+ * multiplicación-xorshift; NO es el msws64 de Widynski).
  *
  * middle-square por sí solo está roto (ciclos cortos, colapso a cero).
- * msws64 por sí solo es un PRNG decente de 64 bits.
+ * El generador de 64 bits por sí solo es un PRNG decente de 64 bits.
  * El híbrido XOR de ambos produce buena distribución estadística.
  *
  * Uso:
@@ -45,7 +46,7 @@ static inline uint16_t hybrid_ms_next(uint16_t x) {
     return (uint16_t)(d1 * 1000 + d2 * 100 + d3 * 10 + d4);
 }
 
-/* msws64: multiplicación + xorshift (Widynski 2017) */
+/* generador de 64 bits: multiplicación + xorshift (no es el msws64 de Widynski) */
 static inline uint64_t hybrid_msws_next(uint64_t *state) {
     *state *= 6364136223846793005ULL;
     *state ^= *state >> 17;

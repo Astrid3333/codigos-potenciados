@@ -9,8 +9,15 @@ Repositorio de trabajo del agente `evolve-agent`. Contiene código C bajo `codig
 >   el estado y el retículo de planos (15 planos, medido) sigue siendo
 >   recuperable. Su período real es 2³⁰. Se conserva como ejemplo histórico.
 > - **Lo que sí mejoró RANDU está en otros módulos**, y esos son los que deben
->   usarse: `msws64/` (Widynski 2017, 64 bits), `hybrid_prng/`
->   (middle-square + msws64) y el **híbrido LCG+msws64** de `lcg_lehmer/`.
+>   usarse: `msws64/` (generador de 64 bits mult-xorshift), `hybrid_prng/`
+>   (middle-square + generador de 64 bits) y el **híbrido LCG+msws64** de
+>   `lcg_lehmer/`.
+> - **Corrección (2026-11-20):** el módulo `msws64/` **no** implementa el
+>   `msws64` de Widynski (2017), aunque así se atribuía antes. Es una cadena
+>   de multiplicación-xorshift de 3 rondas; el msws64 canónico de Widynski
+>   (xorshift 12/25/27 + multiplicador `0x2545F4914F6CDD1D`) está ahora en
+>   `codigos-potenciados/msws64/msws64_widynski.h` y las dos implementaciones
+>   difieren desde la primera iteración.
 > - **Los informes de este repo son estudios, no homologaciones.** Nada de lo
 >   que hay aquí certifica un estándar (ISO/IEC 23837, PractRand) ni una
 >   calidad criptográfica. Lo que sí hacen es *medir* con p-values publicables.
@@ -32,7 +39,7 @@ Repositorio de trabajo del agente `evolve-agent`. Contiene código C bajo `codig
 | `hastings/` | Aproximaciones polinómicas de sin, atan, atan2, asin, sqrt, exp, log1p, log, pow (grado 5 en x², hasta grado 11 en x) | Listo para Arduino, error 1e-5 o mejor; Remez minimax opcional |
 | `cordic/` | CORDIC (Volder 1959): seno/coseno solo con sumas, restas y shifts | Listo para Arduino |
 | `lcg_lehmer/` | Análisis espectral de LCG (RANDU, MINSTD), prueba de período, híbrido LCG+msws64, TCR-LCG | Completo |
-| `msws64/` | PRNG msws64 (Widynski 2017) de 64 bits + middle-square de von Neumann (referencia) | Completo |
+| `msws64/` | Generador de 64 bits (multiplicación + xorshift de 3 rondas) + middle-square de von Neumann (referencia) + msws64 canónico de Widynski como referencia | Completo |
 | `middle_square/` | Generador de von Neumann de 4 dígitos con ciclo, sumideros y comparación contra `msws64` | Completo (17/17 tests) |
 | `hybrid_prng/` | PRNG híbrido middle-square + msws64 con tests estadísticos y unitarios | Completo |
 | `abacus_vedic/` | Suanpan chino sobre cuentas (suma, resta, multiplicación) + multiplicación védica (urdhva) y cruces | Completo (29/29 tests) |
@@ -57,8 +64,8 @@ los módulos del repo, con su ruta y su test:
 
 | Módulo | Rutas exactas | Qué aporta frente a un LCG lineal |
 |---|---|---|
-| `msws64` | `codigos-potenciados/msws64/msws64.h`, `msws64.c`, `README.md` | PRNG de 64 bits (Widynski 2017), período ~2⁶⁴, periodo y sumidero 0 evitados por construcción |
-| `hybrid_prng` | `codigos-potenciados/hybrid_prng/hybrid_prng.h`, `hybrid_prng.c`, `hybrid_prng_test.c` | middle-square + msws64: el estado entra por el square, la salida sale por msws64 |
+| `msws64` | `codigos-potenciados/msws64/msws64.h`, `msws64.c`, `README.md` | PRNG de 64 bits (mult-xorshift de 3 rondas); **no** es el msws64 de Widynski; su período no está verificado y el sumidero 0 se evita forzando semilla impar |
+| `hybrid_prng` | `codigos-potenciados/hybrid_prng/hybrid_prng.h`, `hybrid_prng.c`, `hybrid_prng_test.c` | middle-square + generador de 64 bits: el estado entra por el square, la salida sale por el generador de 64 bits |
 | `lcg_lehmer` | `codigos-potenciados/lcg_lehmer/lcg_lehmer.h`, `lcg_lehmer.c`, `lcg_lehmer_test.c` | análisis espectral de LCG (RANDU, MINSTD), prueba de período, **híbrido LCG+msws64** y TCR-LCG |
 | `middle_square` | `codigos-potenciados/middle_square/` | von Neumann de 4 dígitos con ciclo, sumideros y comparación contra `msws64` (17/17 tests) |
 
@@ -78,7 +85,7 @@ Resultado en `VALIDATION_REPORT_PRNG_MODULES.md`:
 | Flujo | p < 0.01 | p < 0.001 | Lectura |
 |---|---|---|---|
 | `/dev/urandom` (control) | 1/56 | 0 | el control limpio también produce algún p<0.01: exigir 56/56 daría falsos FAIL |
-| `msws64` | 0/56 | 0 | sin señal en la batería |
+| `msws64` (mult-xorshift de 3 rondas, **no** el de Widynski) | 0/56 | 0 | sin señal en la batería |
 | `hybrid_prng` | 1/56 | 0 | señal marginal reproducible en `NIST_BlockFreq` (semilla 65537, p=0.00757203) |
 | LCG+msws64 | 0/56 | 0 | sin señal en la batería |
 
@@ -95,9 +102,14 @@ Matices honestos:
 - Esto **no es** TestU01 ni PractRand: TestU01 real no está instalado en este
   entorno y el harness versionado solo cubre `randu_plus`.
 
-Recomendación: para uso general, `msws64` puro (es el único con 0/56 en
-toda la batería). `hybrid_prng` y el híbrido LCG+msws64 pasan, pero con las
-salvedades anteriores.
+Recomendación: para uso general, el generador de 64 bits del módulo `msws64/`
+(es el único con 0/56 en toda la batería). `hybrid_prng` y el híbrido
+LCG+msws64 pasan, pero con las salvedades anteriores.
+
+> **Qué se midió exactamente:** estas cifras corresponden al generador que el
+> módulo `msws64/` implementa (cadena de multiplicación-xorshift de 3 rondas),
+> **no** al msws64 de Widynski. La referencia canónica de Widynski
+> (`msws64_widynski.h`) todavía no está sometida a esta batería.
 
 Lo que **no** hay todavía (y conviene no dar por hecho): un harness de TestU01
 o una corrida de PractRand para `msws64`/`hybrid_prng`. El único harness de

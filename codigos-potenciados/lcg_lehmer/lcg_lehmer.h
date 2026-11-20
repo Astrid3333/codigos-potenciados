@@ -52,7 +52,7 @@ void hybrid_lcg_msws_seed(hybrid_lcg_msws_t *h, uint64_t seed);
 /* Genera siguiente valor híbrido */
 uint64_t hybrid_lcg_msws_next(hybrid_lcg_msws_t *h);
 
-/* Genera siguiente valor del msws64 puro (Widynski 2017) */
+/* Genera siguiente valor del generador de 64 bits puro (mult-xorshift) */
 uint64_t msws64_pure_next(uint64_t *state);
 
 /* Análisis espectral de un LCG dado (a, c, m, dim) */
