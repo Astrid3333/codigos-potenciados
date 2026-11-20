@@ -1,13 +1,14 @@
-/* msws64.c - Generador PRNG de 64 bits: multiplicacion + xorshift (3 rondas)
+/* mult_xorshift64.c - Generador PRNG de 64 bits: multiplicacion + xorshift
  *
- * Compilar: gcc -std=c11 -O2 msws64.c -o msws64_test -lm
- * Ejecutar: ./msws64_test
+ * Compilar: gcc -std=c11 -O2 mult_xorshift64.c -o mult_xorshift64_test -lm
+ * Ejecutar: ./mult_xorshift64_test
  *
- * NOTA (2026-11-20): este generador NO es el msws64 de Widynski (2017).
- * El algoritmo realmente implementado es una cadena de multiplicacion por
- * constantes impares y xorshift (ver msws64.h). La implementacion canonica
- * de Widynski esta en msws64_widynski.h y se usa aqui como referencia:
- * el test comprueba que ambas salidas difieren desde la primera iteracion.
+ * NOTA (2026-11-20): este generador NO es el msws64 de Widynski (2017) ni
+ * el xorshift64* de Vigna. El algoritmo realmente implementado es una cadena
+ * de multiplicacion por constantes impares y xorshift (ver
+ * mult_xorshift64.h). El msws64 de Widynski (cuadrado + Weyl + rotacion) esta
+ * en msws64_widynski.h y se usa aqui como referencia: el test comprueba que
+ * ambas salidas difieren desde la primera iteracion.
  *
  * Comparativa incluida en el test:
  *   - middle-square original (4 digitos): ciclos cortos, colapso a 0
@@ -18,7 +19,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <math.h>
-#include "msws64.h"
+#include "mult_xorshift64.h"
 #include "msws64_widynski.h"
 
 /* ---------- middle-square de von Neumann (4 digitos) ---------- */
@@ -92,15 +93,16 @@ static double chi_square(uint64_t *samples, int n_samples, int nbins, uint64_t m
 int main(void) {
     printf("=== Generador de 64 bits (mult-xorshift) vs middle-square de von Neumann ===\n\n");
 
-    /* Comparacion con el msws64 canonico de Widynski */
-    msws64_t mine;
-    msws64_seed(&mine, 12345ULL);
-    uint64_t wid_state = 12345ULL | 1ULL;
-    printf("Comparacion con el msws64 de Widynski (referencia canonica):\n");
+    /* Comparacion con el msws64 de Widynski (cuadrado + Weyl + rotacion) */
+    mult_xorshift64_t mine;
+    mult_xorshift64_seed(&mine, 12345ULL);
+    uint64_t wx = 12345ULL, ww = 0ULL;
+    msws64_widynski_seed(&wx, &ww, 12345ULL);
+    printf("Comparacion con el msws64 de Widynski (cuadrado + Weyl + rotacion):\n");
     int differ = 0;
     for (int i = 1; i <= 5; ++i) {
-        uint64_t a = msws64_next(&mine);
-        uint64_t b = msws64_widynski_next(&wid_state);
+        uint64_t a = mult_xorshift64_next(&mine);
+        uint64_t b = msws64_widynski_next(&wx, &ww);
         if (a != b) differ++;
         printf("  %2d: este=%020llu  widynski=%020llu  %s\n", i,
                (unsigned long long)a, (unsigned long long)b,
@@ -116,16 +118,16 @@ int main(void) {
     printf("  Ciclos: %d\n", n_cycles);
     printf("  Zero sink: %d de 10000 (%.2f%%)\n", zero_sink, 100.0 * zero_sink / 10000.0);
 
-    /* msws64 */
-    msws64_t rng;
-    msws64_seed(&rng, 1234ULL);
+    /* generador mult-xorshift */
+    mult_xorshift64_t rng;
+    mult_xorshift64_seed(&rng, 1234ULL);
 
-    /* periodo de msws64 (muestreo limitado) */
+    /* periodo (muestreo limitado) */
     uint64_t x = rng.state;
     uint64_t seen_set[100000] = {0};
     int msws_period = 0;
     for (int i = 0; i < 100000; ++i) {
-        x = msws64_next(&rng);
+        x = mult_xorshift64_next(&rng);
         int found = 0;
         for (int j = 0; j < i; ++j) {
             if (seen_set[j] == x) { found = 1; msws_period = i - j; break; }
@@ -145,20 +147,20 @@ int main(void) {
         fprintf(stderr, "Error: no se pudo asignar memoria para samples\n");
         return 1;
     }
-    msws64_seed(&rng, 1234ULL);
+    mult_xorshift64_seed(&rng, 1234ULL);
     for (int i = 0; i < n_samples; ++i) {
-        samples[i] = msws64_next(&rng);
+        samples[i] = mult_xorshift64_next(&rng);
     }
     double chi2 = chi_square(samples, n_samples, nbins, UINT64_MAX);
     printf("  Chi^2 (%d bins, %d muestras): %.2f\n", nbins, n_samples, chi2);
     printf("  Esperado para uniformidad: ~%d (grados de libertad = %d)\n", nbins - 1, nbins - 1);
 
     /* Ejemplos de salida */
-    printf("\nPrimeros 10 valores de msws64 (semilla 1234):\n");
-    msws64_seed(&rng, 1234ULL);
+    printf("\nPrimeros 10 valores del generador mult-xorshift (semilla 1234):\n");
+    mult_xorshift64_seed(&rng, 1234ULL);
     for (int i = 0; i < 10; ++i) {
-        uint64_t r = msws64_next(&rng);
-        double d = msws64_next_double(&rng);
+        uint64_t r = mult_xorshift64_next(&rng);
+        double d = mult_xorshift64_next_double(&rng);
         printf("  %2d: uint64=%llu, double=%.10f\n", i + 1, (unsigned long long)r, d);
     }
 

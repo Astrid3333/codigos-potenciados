@@ -33,8 +33,8 @@
  * (biyectividad y periodo real) y verifica la recuperacion del retículo.
  *
  * Para generar numeros pseudoaleatorios de calidad use, en este mismo repo:
- *   - codigos-potenciados/msws64/   (generador de 64 bits mult-xorshift;
- *     su periodo no esta verificado y NO es el msws64 de Widynski)
+ *   - codigos-potenciados/mult_xorshift64/ (generador de 64 bits mult-xorshift; su
+ *     periodo no esta verificado y NO es el msws64 de Widynski)
  *   - codigos-potenciados/hybrid_prng/ (middle-square + generador de 64 bits)
  * Randu_plus se conserva solo como ejemplo historico y referencia de estudio.
  *

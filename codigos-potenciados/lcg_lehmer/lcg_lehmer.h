@@ -6,7 +6,7 @@
  *   - MINSTD: a = 16807 = 7^5, c = 0, m = 2^31 - 1
  *   - Análisis espectral: distancia entre hiperplanos en k dimensiones
  *   - Test de redes (RANDU: puntos caen en 15 planos en 3D)
- *   - Mejoras: TCR (Teorema Chino del Resto), msws64 híbrido
+ *   - Mejoras: TCR (Teorema Chino del Resto), híbrido con generador mult-xorshift
  *
  * Referencia: Knuth TAOCP Vol 2, cap. 3; Marsaglia 1968 (RANDU)
  */
@@ -37,23 +37,23 @@ typedef struct {
     int zero_sink_count;  /* cuántos estados caen en cero */
 } lcg_period_result_t;
 
-/* Resultado híbrido LCG + msws64 */
+/* Resultado híbrido LCG + mult-xorshift64 */
 typedef struct {
     uint64_t state_lcg;
     uint64_t state_msws;
     uint64_t a;
     uint64_t c;
     uint64_t m;
-} hybrid_lcg_msws_t;
+} hybrid_lcg_mult_xorshift_t;
 
 /* Inicializa híbrido */
-void hybrid_lcg_msws_seed(hybrid_lcg_msws_t *h, uint64_t seed);
+void hybrid_lcg_mult_xorshift_seed(hybrid_lcg_mult_xorshift_t *h, uint64_t seed);
 
 /* Genera siguiente valor híbrido */
-uint64_t hybrid_lcg_msws_next(hybrid_lcg_msws_t *h);
+uint64_t hybrid_lcg_mult_xorshift_next(hybrid_lcg_mult_xorshift_t *h);
 
 /* Genera siguiente valor del generador de 64 bits puro (mult-xorshift) */
-uint64_t msws64_pure_next(uint64_t *state);
+uint64_t mult_xorshift64_pure_next(uint64_t *state);
 
 /* Análisis espectral de un LCG dado (a, c, m, dim) */
 lcg_spectral_result_t lcg_spectral_analyze(uint64_t a, uint64_t c, uint64_t m,

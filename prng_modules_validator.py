@@ -5,15 +5,16 @@ Reutiliza la bateria ya escrita y depurada de `randu_plus_validator.py`
 permutaciones y tests NIST de primer orden) y la aplica a los generadores de
 64 bits del repo:
 
-  - `msws64`      -> codigos-potenciados/msws64/msws64.h
+  - `mult_xorshift64` -> codigos-potenciados/mult_xorshift64/mult_xorshift64.h
   - `hybrid_prng` -> codigos-potenciados/hybrid_prng/hybrid_prng.h
-  - `lcg+msws64`  -> codigos-potenciados/lcg_lehmer/ (hybrid_lcg_msws_next)
+  - `lcg+mult_xorshift64` -> codigos-potenciados/lcg_lehmer/ (hibrido)
 
-OJO: el modulo `msws64/` NO implementa el msws64 de Widynski (2017), sino una
-cadena de multiplicacion-xorshift de 3 rondas. Las medidas de este script
-corresponden al generador realmente implementado. La referencia canonica de
-Widynski esta en `codigos-potenciados/msws64/msws64_widynski.h` y no se mide
-aqui.
+OJO: el generador de 64 bits del repo se llama `mult_xorshift64` (cadena de
+multiplicacion-xorshift de 3 rondas) desde el 2026-11-20, cuando se vio que el
+nombre "msws64" era incorrecto: el msws64 de Widynski (2017) usa cuadrado +
+incremento de Weyl + rotacion. Las medidas de este script corresponden al
+generador realmente implementado; el msws64 de Widynski (referencia en
+`codigos-potenciados/mult_xorshift64/msws64_widynski.h`) no se mide aqui.
 
 Incluye un CONTROL NEGATIVO: el estado crudo de `randu_plus`, que sabemos
 roto (15 planos, p-value ~0). Si la bateria no lo detecta, la bateria no sirve
@@ -45,17 +46,17 @@ REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
 MODULES_DIR = os.path.join(REPO_ROOT, 'codigos-potenciados')
 
 DRIVER_SOURCE = {
-    'msws64': r'''#include <stdio.h>
+    'mult_xorshift64': r'''#include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "msws64.h"
+#include "mult_xorshift64.h"
 int main(int argc, char** argv) {
     uint64_t s = (argc > 1) ? strtoull(argv[1], NULL, 10) : 12345ULL;
     size_t n = (argc > 2) ? strtoul(argv[2], NULL, 10) : 1000000;
-    msws64_t rng;
-    msws64_seed(&rng, s);
+    mult_xorshift64_t rng;
+    mult_xorshift64_seed(&rng, s);
     for (size_t i = 0; i < n; ++i) {
-        uint64_t r = msws64_next(&rng);
+        uint64_t r = mult_xorshift64_next(&rng);
         fwrite(&r, 8, 1, stdout);
     }
     return 0;
@@ -77,17 +78,17 @@ int main(int argc, char** argv) {
     return 0;
 }
 ''',
-    'lcg_msws64': r'''#include <stdio.h>
+    'lcg_mult_xorshift64': r'''#include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include "lcg_lehmer.h"
 int main(int argc, char** argv) {
     uint64_t s = (argc > 1) ? strtoull(argv[1], NULL, 10) : 12345ULL;
     size_t n = (argc > 2) ? strtoul(argv[2], NULL, 10) : 1000000;
-    hybrid_lcg_msws_t h;
-    hybrid_lcg_msws_seed(&h, s);
+    hybrid_lcg_mult_xorshift_t h;
+    hybrid_lcg_mult_xorshift_seed(&h, s);
     for (size_t i = 0; i < n; ++i) {
-        uint64_t r = hybrid_lcg_msws_next(&h);
+        uint64_t r = hybrid_lcg_mult_xorshift_next(&h);
         fwrite(&r, 8, 1, stdout);
     }
     return 0;
@@ -97,21 +98,21 @@ int main(int argc, char** argv) {
 
 # Directorios y fuentes extra que cada driver necesita para compilar.
 BUILD_SPEC = {
-    'msws64': {
-        'include_dir': os.path.join(MODULES_DIR, 'msws64'),
+    'mult_xorshift64': {
+        'include_dir': os.path.join(MODULES_DIR, 'mult_xorshift64'),
         'sources': [],
     },
     'hybrid_prng': {
         'include_dir': os.path.join(MODULES_DIR, 'hybrid_prng'),
         'sources': [],
     },
-    'lcg_msws64': {
+    'lcg_mult_xorshift64': {
         'include_dir': os.path.join(MODULES_DIR, 'lcg_lehmer'),
         'sources': [os.path.join(MODULES_DIR, 'lcg_lehmer', 'lcg_lehmer.c')],
     },
 }
 
-TARGETS = ('msws64', 'hybrid_prng', 'lcg_msws64')
+TARGETS = ('mult_xorshift64', 'hybrid_prng', 'lcg_mult_xorshift64')
 
 N_VALUES_U64 = 500_000   # 500k uint64 = 1M uint32, igual muestra que randu_plus
 
@@ -264,30 +265,33 @@ def binomial_upper_99_9(n_trials: int, p0: float = 0.01) -> int:
 
 
 def write_report(results: Dict, control: Dict, clean: Dict, path: str) -> None:
-    limit = binomial_upper_99_9(results['msws64']['n_trials'])
+    limit = binomial_upper_99_9(results['mult_xorshift64']['n_trials'])
     with open(path, 'w') as f:
         f.write('# Bateria estadistica de los PRNG de 64 bits del repo\n\n')
         f.write("**Estudio, no homologacion.** Mide el flujo de bits de "
-                "`msws64`, `hybrid_prng` y del híbrido LCG+msws64 con la misma "
+                "`mult_xorshift64`, `hybrid_prng` y del híbrido LCG+mult_xorshift64 con la misma "
                 "bateria que usa `randu_plus_validator.py`, y la acompaña de dos "
                 "controles: uno limpio (`/dev/urandom`, que debe comportarse como "
                 "un generador ideal) y uno defectuoso (el estado crudo de "
-                "`randu_plus`, que debe fallar). No es TestU01 ni PractRand: "
-                "TestU01 real no esta instalado en este entorno y el harness "
-                "versionado solo cubre `randu_plus`.\n\n")
-        f.write("**Que se midio exactamente:** el modulo `msws64/` NO implementa el "
-                "msws64 de Widynski (2017), sino una cadena de multiplicacion-"
-                "xorshift de 3 rondas. Las cifras de este informe corresponden a "
-                "ese generador realmente implementado. La referencia canonica de "
-                "Widynski (`codigos-potenciados/msws64/msws64_widynski.h`) no se "
-                "mide aqui.\n\n")
-        f.write(f"**Semillas:** {', '.join(str(s) for s in results['msws64']['seeds'])}"
+                "`randu_plus`, que debe fallar). No es TestU01 ni PractRand: la "
+                "biblioteca completa de TestU01 no esta instalada en este entorno; el "
+                "harness versionado (`codigos-potenciados/testu01/`) solo cubre "
+                "`randu_plus`, asi que estos tres generadores todavia no se han "
+                "sometido a TestU01 real.\n\n")
+        f.write("**Que se midio exactamente:** el generador de 64 bits del repo se "
+                "llama `mult_xorshift64` (cadena de multiplicacion-xorshift de 3 "
+                "rondas). NO es el msws64 de Widynski (2017), que usa cuadrado + "
+                "incremento de Weyl + rotacion y se referencia en "
+                "`codigos-potenciados/msws64_widynski.h` (no medido "
+                "aqui). Las cifras de este informe corresponden al generador "
+                "realmente implementado.\n\n")
+        f.write(f"**Semillas:** {', '.join(str(s) for s in results['mult_xorshift64']['seeds'])}"
                 f" (8 semillas)\n")
-        f.write(f"**Muestra por semilla:** {results['msws64']['n_values_u64']} uint64 "
-                f"= {results['msws64']['n_values_u64']*2} uint32 "
+        f.write(f"**Muestra por semilla:** {results['mult_xorshift64']['n_values_u64']} uint64 "
+                f"= {results['mult_xorshift64']['n_values_u64']*2} uint32 "
                 "(palabras de 32 bits NO solapadas, en el orden de bytes que ve "
                 "un consumidor)\n")
-        f.write(f"**Comparaciones:** {results['msws64']['n_trials']} p-values por "
+        f.write(f"**Comparaciones:** {results['mult_xorshift64']['n_trials']} p-values por "
                 "generador (7 tests x 8 semillas)\n")
         f.write("**Criterio:** con 56 p-values y umbral 0.01, un flujo aleatorio "
                 f"espera 0.56 falsos positivos; el limite de 99.9% es {limit}. "
@@ -338,7 +342,7 @@ def write_report(results: Dict, control: Dict, clean: Dict, path: str) -> None:
         f.write("- El test espectral de Marsaglia usa **200000 tuplas** (no 50000): "
                 "con 50000 tuplas la ocupacion media por celda de la rejilla 16^3 "
                 "es 12,2 y el p-value fluctua mucho. Medido sobre el MISMO flujo "
-                "(lcg+msws64, semilla 3): p=0.000432 con 50000 tuplas y p=0.0751181 "
+                "(lcg+mult_xorshift64, semilla 3): p=0.000432 con 50000 tuplas y p=0.0751181 "
                 "con 200000. El FAIL de 0.00043 era ruido del test, no un defecto "
                 "del generador.\n")
         f.write("- El FAIL de `NIST_BlockFreq` en `hybrid_prng` (semilla 65537, "
@@ -347,16 +351,16 @@ def write_report(results: Dict, control: Dict, clean: Dict, path: str) -> None:
                 "dentro del presupuesto de falsos positivos (1 de 56 frente a "
                 "0.56 esperados), no como prueba de defecto.\n")
         f.write("- `hybrid_prng` combina el XOR de una secuencia middle-square de "
-                "4 digitos decimales con `msws64`; la parte middle-square aporta "
+                "4 digitos decimales con `mult_xorshift64`; la parte middle-square aporta "
                 "solo ~13,3 bits por palabra, asi que su mitad superior hereda "
-                "esa limitacion aunque el XOR con msws64 la disperse. Para uso "
+                "esa limitacion aunque el XOR con mult_xorshift64 la disperse. Para uso "
                 "criptografico o de simulacion de Monte Carlo de alta exigencia, "
-                "usar `msws64` puro.\n")
-        f.write("- El nombre `msws64` es historico: el algoritmo implementado es "
-                "una cadena de multiplicacion-xorshift de 3 rondas, NO el msws64 "
-                "de Widynski (2017). Su periodo no esta verificado (solo se "
-                "comprobo que no repite en las primeras 100000 muestras) y el "
-                "sumidero 0 se evita forzando semilla impar.\n")
+                "usar `mult_xorshift64` puro.\n")
+        f.write("- El generador de 64 bits se renombro de `msws64` a `mult_xorshift64` el "
+                "2026-11-20: el nombre anterior era incorrecto (no es el msws64 de "
+                "Widynski ni el xorshift64* de Vigna). Su periodo no esta "
+                "verificado (solo se comprobo que no repite en las primeras 100000 "
+                "muestras) y el sumidero 0 se evita forzando semilla impar.\n")
 
         f.write('\n## Control de calibracion: /dev/urandom (debe aprobar)\n\n')
         f.write('| Test | metrica | peor caso | pass |\n|---|---|---|---|\n')

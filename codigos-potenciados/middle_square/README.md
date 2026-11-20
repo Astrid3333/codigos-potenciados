@@ -17,7 +17,7 @@ x' = (x² / 100) mod 10000          (equivalente a tomar los dígitos 2..5 del
 |---------|-----------|
 | `middle_square.h` | Cabecera con tipos y declaraciones |
 | `middle_square.c` | Implementación del paso y las medidas de ciclo |
-| `middle_square_test.c` | Pruebas, incluida la comparación con `msws64` |
+| `middle_square_test.c` | Pruebas, incluida la comparación con `mult_xorshift64` |
 | `README.md` | Este archivo |
 
 ## Uso
@@ -52,21 +52,21 @@ documentadas en las pruebas.
 | Otros puntos fijos | 100, 2500 |
 | Órbita de la semilla 1234 | 63 estados hasta caer en 0 |
 | χ² del mapa `x → x'` (10 bins, 10000 pasos) | **74,18** (valor crítico al 99 %: 21,67) |
-| χ² de `msws64` (10 bins, 100000 muestras) | **9,78** |
+| χ² de `mult_xorshift64` (10 bins, 100000 muestras) | **9,78** |
 
 Es decir: el *middle square* de 4 dígitos **no es un buen generador**. Sus
 ciclos son de apenas unos pocos estados, una de cada cinco semillas se
 estanca en cero y el sesgo de los cuadrados es detectable (χ² = 74 frente a
-9,8 del `msws64` de 64 bits). Por eso la comparación con `msws64` no es
+9,8 del `mult_xorshift64` de 64 bits). Por eso la comparación con `mult_xorshift64` no es
 decorativa: el módulo cuantifica la diferencia.
 
-## Comparación con `msws64`
+## Comparación con `mult_xorshift64`
 
-- `msws64` (`../msws64/msws64.h`) es una cadena de multiplicación-xorshift de
+- `mult_xorshift64` (`../mult_xorshift64/mult_xorshift64.h`) es una cadena de multiplicación-xorshift de
   3 rondas con estado de 64 bits: distribución uniforme (χ² = 9,78 con 100000
   muestras). **No** es el msws64 de Widynski (2017) y su período no está
   verificado; el χ² con 10 bins es una comprobación débil.
-- `msws64.c` contiene además una copia **estática** (no exportada) de este
+- `mult_xorshift64.c` contiene además una copia **estática** (no exportada) de este
   generador, `ms_next_4`, con exactamente el mismo criterio de dígitos
   centrales. El test la replica y verifica que las dos implementaciones
   producen la misma secuencia, estado por estado.

@@ -7,7 +7,7 @@
  *   - Análisis espectral de LCG (distancia entre hiperplanos)
  *   - Test de redes/planos (RANDU: 15 planos en 3D)
  *   - Prueba de período
- *   - Híbrido LCG + msws64
+ *   - Híbrido LCG + generador mult-xorshift de 64 bits
  *   - TCR-LCG (Teorema Chino del Resto)
  *
  * Referencia: Knuth TAOCP Vol 2, cap. 3; Marsaglia 1968 (RANDU)
@@ -26,8 +26,8 @@ __extension__ typedef unsigned __int128 lcg_uint128_t;
 #define M_PI 3.14159265358979323846
 #endif
 
-/* ---------- generador de 64 bits (mult-xorshift; NO es el msws64 de Widynski) ---------- */
-static uint64_t msws64_next(uint64_t *state) {
+/* ---------- generador mult-xorshift64 (NO es el msws64 de Widynski) ---------- */
+static uint64_t mult_xorshift64_next(uint64_t *state) {
     *state *= 6364136223846793005ULL;
     *state ^= *state >> 17;
     *state *= 1442695040888963407ULL;
@@ -37,8 +37,8 @@ static uint64_t msws64_next(uint64_t *state) {
     return *state;
 }
 
-/* ---------- hybrid_lcg_msws ---------- */
-void hybrid_lcg_msws_seed(hybrid_lcg_msws_t *h, uint64_t seed) {
+/* ---------- híbrido LCG + mult_xorshift64 ---------- */
+void hybrid_lcg_mult_xorshift_seed(hybrid_lcg_mult_xorshift_t *h, uint64_t seed) {
     h->state_lcg = (seed % (UINT64_MAX - 1)) + 1;
     h->state_msws = seed | 1ULL;
     h->a = 65539ULL;   /* RANDU multiplicador */
@@ -46,18 +46,18 @@ void hybrid_lcg_msws_seed(hybrid_lcg_msws_t *h, uint64_t seed) {
     h->m = 1ULL << 31; /* RANDU módulo */
 }
 
-uint64_t hybrid_lcg_msws_next(hybrid_lcg_msws_t *h) {
+uint64_t hybrid_lcg_mult_xorshift_next(hybrid_lcg_mult_xorshift_t *h) {
     /* LCG paso: x = (a*x + c) mod m */
     h->state_lcg = (h->a * h->state_lcg + h->c) % h->m;
-    /* msws64 paso */
-    uint64_t mw = msws64_next(&h->state_msws);
+    /* paso mult-xorshift */
+    uint64_t mw = mult_xorshift64_next(&h->state_msws);
     /* Combinar: XOR */
     return h->state_lcg ^ mw;
 }
 
-/* ---------- msws64 puro ---------- */
-uint64_t msws64_pure_next(uint64_t *state) {
-    return msws64_next(state);
+/* ---------- mult_xorshift64 puro ---------- */
+uint64_t mult_xorshift64_pure_next(uint64_t *state) {
+    return mult_xorshift64_next(state);
 }
 
 /* ---------- powmod ---------- */

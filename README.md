@@ -9,15 +9,17 @@ Repositorio de trabajo del agente `evolve-agent`. Contiene código C bajo `codig
 >   el estado y el retículo de planos (15 planos, medido) sigue siendo
 >   recuperable. Su período real es 2³⁰. Se conserva como ejemplo histórico.
 > - **Lo que sí mejoró RANDU está en otros módulos**, y esos son los que deben
->   usarse: `msws64/` (generador de 64 bits mult-xorshift), `hybrid_prng/`
->   (middle-square + generador de 64 bits) y el **híbrido LCG+msws64** de
+>   usarse: `codigos-potenciados/mult_xorshift64/` (generador de 64 bits mult-xorshift), `hybrid_prng/`
+>   (middle-square + generador de 64 bits) y el **híbrido LCG+mult_xorshift64** de
 >   `lcg_lehmer/`.
-> - **Corrección (2026-11-20):** el módulo `msws64/` **no** implementa el
->   `msws64` de Widynski (2017), aunque así se atribuía antes. Es una cadena
->   de multiplicación-xorshift de 3 rondas; el msws64 canónico de Widynski
->   (xorshift 12/25/27 + multiplicador `0x2545F4914F6CDD1D`) está ahora en
->   `codigos-potenciados/msws64/msws64_widynski.h` y las dos implementaciones
->   difieren desde la primera iteración.
+> - **Corrección (2026-11-20):** el módulo se llamaba `msws64` y se atribuía a
+>   Widynski (2017). **El nombre y la atribución eran falsos.** El generador es
+>   una cadena de multiplicación-xorshift de 3 rondas y ahora se llama
+>   `codigos-potenciados/mult_xorshift64/`. El msws64 real de Widynski (cuadrado + incremento
+>   de Weyl + rotación de 32 bits) está en
+>   `codigos-potenciados/mult_xorshift64/msws64_widynski.h`; el xorshift64* de Vigna es un
+>   tercer generador distinto. Los tres dan salidas diferentes desde la
+>   primera iteración.
 > - **Los informes de este repo son estudios, no homologaciones.** Nada de lo
 >   que hay aquí certifica un estándar (ISO/IEC 23837, PractRand) ni una
 >   calidad criptográfica. Lo que sí hacen es *medir* con p-values publicables.
@@ -38,10 +40,10 @@ Repositorio de trabajo del agente `evolve-agent`. Contiene código C bajo `codig
 | `goertzel/` | Algoritmo Goertzel con 3 formulaciones (K, α, β) + híbrida de 3 zonas con plegado por aliasing + FFT radix-2 de referencia | Listo para Arduino (float), DTMF |
 | `hastings/` | Aproximaciones polinómicas de sin, atan, atan2, asin, sqrt, exp, log1p, log, pow (grado 5 en x², hasta grado 11 en x) | Listo para Arduino, error 1e-5 o mejor; Remez minimax opcional |
 | `cordic/` | CORDIC (Volder 1959): seno/coseno solo con sumas, restas y shifts | Listo para Arduino |
-| `lcg_lehmer/` | Análisis espectral de LCG (RANDU, MINSTD), prueba de período, híbrido LCG+msws64, TCR-LCG | Completo |
-| `msws64/` | Generador de 64 bits (multiplicación + xorshift de 3 rondas) + middle-square de von Neumann (referencia) + msws64 canónico de Widynski como referencia | Completo |
-| `middle_square/` | Generador de von Neumann de 4 dígitos con ciclo, sumideros y comparación contra `msws64` | Completo (17/17 tests) |
-| `hybrid_prng/` | PRNG híbrido middle-square + msws64 con tests estadísticos y unitarios | Completo |
+| `lcg_lehmer/` | Análisis espectral de LCG (RANDU, MINSTD), prueba de período, híbrido LCG+mult_xorshift64, TCR-LCG | Completo |
+| `mult_xorshift64/` | Generador de 64 bits (multiplicación + xorshift de 3 rondas) + middle-square de von Neumann (referencia) + msws64 de Widynski como referencia | Completo |
+| `middle_square/` | Generador de von Neumann de 4 dígitos con ciclo, sumideros y comparación contra `mult_xorshift64` | Completo (17/17 tests) |
+| `hybrid_prng/` | PRNG híbrido middle-square + generador de 64 bits, con tests estadísticos y unitarios | Completo |
 | `abacus_vedic/` | Suanpan chino sobre cuentas (suma, resta, multiplicación) + multiplicación védica (urdhva) y cruces | Completo (29/29 tests) |
 | `pi_ancestral/` | π por polígonos de Arquímedes (cotas inscrita/circunscrita) + extrapolación de Liu Hui con Richardson | Completo (30/30 tests) |
 | `randu_plus.c`, `sine_fixed.c` | Utilidades sueltas | Completo (ver nota abajo) |
@@ -50,7 +52,7 @@ Repositorio de trabajo del agente `evolve-agent`. Contiene código C bajo `codig
 > es una biyección, así que la salida determina el estado y el retículo de RANDU
 > sigue siendo recuperable; el período real es 2³⁰. Se conserva como ejemplo
 > histórico con la advertencia explícita, y el propio test lo verifica (8/8).
-> Para generar números usa `codigos-potenciados/msws64/`.
+> Para generar números usa `codigos-potenciados/mult_xorshift64/`.
 >
 > **Ojo con el nombre:** el RANDU histórico de Knuth usa módulo 2³¹ y período
 > 2²⁹; este repo usa una **variante con módulo 2³²** y período **2³⁰** (medido,
@@ -64,10 +66,10 @@ los módulos del repo, con su ruta y su test:
 
 | Módulo | Rutas exactas | Qué aporta frente a un LCG lineal |
 |---|---|---|
-| `msws64` | `codigos-potenciados/msws64/msws64.h`, `msws64.c`, `README.md` | PRNG de 64 bits (mult-xorshift de 3 rondas); **no** es el msws64 de Widynski; su período no está verificado y el sumidero 0 se evita forzando semilla impar |
+| `mult_xorshift64` | `codigos-potenciados/mult_xorshift64/mult_xorshift64.h`, `mult_xorshift64.c`, `msws64_widynski.h`, `README.md` | PRNG de 64 bits (mult-xorshift de 3 rondas); **no** es el msws64 de Widynski ni el xorshift64* de Vigna; su período no está verificado y el sumidero 0 se evita forzando semilla impar |
 | `hybrid_prng` | `codigos-potenciados/hybrid_prng/hybrid_prng.h`, `hybrid_prng.c`, `hybrid_prng_test.c` | middle-square + generador de 64 bits: el estado entra por el square, la salida sale por el generador de 64 bits |
-| `lcg_lehmer` | `codigos-potenciados/lcg_lehmer/lcg_lehmer.h`, `lcg_lehmer.c`, `lcg_lehmer_test.c` | análisis espectral de LCG (RANDU, MINSTD), prueba de período, **híbrido LCG+msws64** y TCR-LCG |
-| `middle_square` | `codigos-potenciados/middle_square/` | von Neumann de 4 dígitos con ciclo, sumideros y comparación contra `msws64` (17/17 tests) |
+| `lcg_lehmer` | `codigos-potenciados/lcg_lehmer/lcg_lehmer.h`, `lcg_lehmer.c`, `lcg_lehmer_test.c` | análisis espectral de LCG (RANDU, MINSTD), prueba de período, **híbrido LCG+mult_xorshift64** y TCR-LCG |
+| `middle_square` | `codigos-potenciados/middle_square/` | von Neumann de 4 dígitos con ciclo, sumideros y comparación contra `mult_xorshift64` (17/17 tests) |
 
 Los tres compilan sin warnings con `gcc -std=c11 -O2 -Wall -Wextra -pedantic` y
 sus tests pasan. `lcg_lehmer_test` **mide** el defecto de RANDU por dentro
@@ -76,8 +78,8 @@ aceptable), que es la razón por la que el repo no insiste en RANDU.
 
 ### Medición de esos tres generadores (batería propia, 2026-11-20)
 
-`prng_modules_validator.py` mide el flujo de 32 bits de `msws64`,
-`hybrid_prng` y del híbrido LCG+msws64 con 8 semillas × 7 tests (56
+`prng_modules_validator.py` mide el flujo de 32 bits de `mult_xorshift64`,
+`hybrid_prng` y del híbrido LCG+mult_xorshift64 con 8 semillas × 7 tests (56
 p-values por generador) y dos controles: `/dev/urandom` (limpio, debe
 aprobar) y el estado crudo de `randu_plus` (defectuoso, debe fallar).
 Resultado en `VALIDATION_REPORT_PRNG_MODULES.md`:
@@ -85,34 +87,35 @@ Resultado en `VALIDATION_REPORT_PRNG_MODULES.md`:
 | Flujo | p < 0.01 | p < 0.001 | Lectura |
 |---|---|---|---|
 | `/dev/urandom` (control) | 1/56 | 0 | el control limpio también produce algún p<0.01: exigir 56/56 daría falsos FAIL |
-| `msws64` (mult-xorshift de 3 rondas, **no** el de Widynski) | 0/56 | 0 | sin señal en la batería |
+| `mult_xorshift64` (mult-xorshift de 3 rondas, **no** el de Widynski) | 0/56 | 0 | sin señal en la batería |
 | `hybrid_prng` | 1/56 | 0 | señal marginal reproducible en `NIST_BlockFreq` (semilla 65537, p=0.00757203) |
-| LCG+msws64 | 0/56 | 0 | sin señal en la batería |
+| LCG+mult_xorshift64 | 0/56 | 0 | sin señal en la batería |
 
 Matices honestos:
 
 - La señal marginal de `hybrid_prng` es **reproducible** (mismo valor en
   corridas independientes) y queda registrada como señal, no como prueba de
   defecto: la parte middle-square aporta solo ~13,3 bits por palabra, así que
-  su mitad superior hereda esa limitación aunque el XOR con msws64 la disperse.
+  su mitad superior hereda esa limitación aunque el XOR con el generador de 64
+  bits la disperse.
 - El FAIL de `NIST_Runs` que se vio antes sobre `/dev/urandom` y el de
-  `MarsagliaSpectral3D` (p=0.00043) sobre LCG+msws64 eran **ruido del test**:
+  `MarsagliaSpectral3D` (p=0.00043) sobre LCG+mult_xorshift64 eran **ruido del test**:
   el segundo desaparece al pasar de 50 000 a 200 000 tuplas sobre el mismo
   flujo (p=0.0751181). Por eso el test espectral usa 200 000 tuplas.
 - Esto **no es** TestU01 ni PractRand: TestU01 real no está instalado en este
   entorno y el harness versionado solo cubre `randu_plus`.
 
-Recomendación: para uso general, el generador de 64 bits del módulo `msws64/`
+Recomendación: para uso general, el generador de 64 bits del módulo `mult_xorshift64/`
 (es el único con 0/56 en toda la batería). `hybrid_prng` y el híbrido
-LCG+msws64 pasan, pero con las salvedades anteriores.
+LCG+mult_xorshift64 pasan, pero con las salvedades anteriores.
 
 > **Qué se midió exactamente:** estas cifras corresponden al generador que el
-> módulo `msws64/` implementa (cadena de multiplicación-xorshift de 3 rondas),
-> **no** al msws64 de Widynski. La referencia canónica de Widynski
-> (`msws64_widynski.h`) todavía no está sometida a esta batería.
+> módulo `mult_xorshift64/` implementa (cadena de multiplicación-xorshift de 3
+> rondas), **no** al msws64 de Widynski. La referencia de Widynski
+> (`codigos-potenciados/mult_xorshift64/msws64_widynski.h`) todavía no está sometida a esta batería.
 
 Lo que **no** hay todavía (y conviene no dar por hecho): un harness de TestU01
-o una corrida de PractRand para `msws64`/`hybrid_prng`. El único harness de
+o una corrida de PractRand para `mult_xorshift64`/`hybrid_prng`. El único harness de
 TestU01 del repo es el de `randu_plus` (`codigos-potenciados/testu01/`).
 
 ## `randu_plus` (ejemplo histórico, no usar para números pseudoaleatorios)

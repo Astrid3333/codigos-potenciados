@@ -14,6 +14,7 @@ informe en su propia sección.
 
 import struct
 import math
+import json
 import sys
 import subprocess
 import os
@@ -648,8 +649,8 @@ de los valores entre semillas, no el de una ejecución afortunada.
   de RANDU ni un periodo corto. El periodo real del generador es **2^30** y el
   retículo es recuperable por la recurrencia `x[n+2] = 6·x[n+1] - 9·x[n]`;
   eso está documentado en `randu_plus.h`, que recomienda explícitamente
-  `msws64/` o `hybrid_prng/` para uso real (el módulo `msws64/` es un
-  generador de 64 bits mult-xorshift; **no** es el msws64 de Widynski).
+  `mult_xorshift64/` o `hybrid_prng/` para uso real (el generador de 64 bits
+  del repo se llama así desde el 2026-11-20; **no** es el msws64 de Widynski).
 - `fmix32` (el post-proceso de MurmurHash) es una **biyección**: reordena los
   estados de RANDU pero no añade entropía ni rompe el retículo.
 - El recuento dice "el flujo **parece** aleatorio a estas escalas", no "el
@@ -689,18 +690,28 @@ caja negra, pero la estructura se recupera desde la propia salida.
 SmallCrush (15 estadísticas) **sí detecta** el retículo cuando recibe el
 **estado crudo** del LCG: en modo `state` fallan 14 de las 15 estadísticas con
 p-value ~0. En modo `fmix` (la salida de `randu_plus()`) **pasan las 15** en
-las {n_seeds} semillas medidas. Es decir: `fmix32` borra la estructura
-*observable* en caja negra, pero no la elimina (fmix32 es invertible) y el
-periodo sigue siendo 2^30. Para uso real, `msws64/` o `hybrid_prng/` (el
+las {n_seeds} semillas medidas.
+
+La batería **Crush** (144 estadísticas, 10 veces más que SmallCrush) va más
+allá: la salida mezclada **sí falla** (Gap y MaxOft fuera de rango), mientras
+que el estado crudo falla de forma masiva. Es decir: `fmix32` borra la
+estructura *observable* en caja negra a escala SmallCrush, pero ni siquiera
+eso a escala Crush, y desde luego no la elimina (fmix32 es invertible) ni
+cambia el periodo, que sigue siendo 2^30. Para uso real,
+`mult_xorshift64/` o `hybrid_prng/`.
 generador de 64 bits del módulo `msws64/`; **no** es el msws64 de Widynski).
 
 El harness de TestU01 está **versionado** en `codigos-potenciados/testu01/`
 (fuentes y `Makefile`); los binarios `run_randu_plus` y `lattice_recovery` no se
 versionan y se construyen con
 `make -C codigos-potenciados/testu01 TESTU01_HOME=/ruta/a/testu01`. Los números
-de esa sección se midieron con el binario local `run_randu_plus`. Si el harness
-no está, el validador omite la sección en vez de reportar un resultado
-inventado.
+de esa sección se midieron con el binario local `run_randu_plus` (TestU01
+1.2.3). Si el harness no está, el validador omite la sección en vez de
+reportar un resultado inventado.
+
+La batería Crush es lenta (~30 min por modo y semilla). Para incluirla en el
+informe hay que ejecutar el validador con `RANDU_TESTU01_CRUSH=1`; sin esa
+variable solo se ejecuta SmallCrush y el informe lo dice.
 
 ### Muestra realmente consumida
 
@@ -809,8 +820,32 @@ def seed_sweep(seeds=STAT_SEEDS, n_values: int = STAT_N_VALUES) -> Dict:
             "per_seed": per_seed, "summary": summary}
 
 
-def testu01_smallcrush(seed: int, mode: str = "fmix",
-                       timeout: int = 900) -> Dict:
+TESTU01_CACHE = os.path.join(REPO_ROOT, 'codigos-potenciados', 'testu01',
+                             '.testu01_cache.json')
+
+
+def testu01_cache_load() -> Dict:
+    if not os.path.exists(TESTU01_CACHE):
+        return {}
+    try:
+        with open(TESTU01_CACHE) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def testu01_cache_store(entry: Dict) -> None:
+    cache = testu01_cache_load()
+    cache[f"{entry['battery']}|{entry['mode']}|{entry['seed']}"] = entry
+    try:
+        with open(TESTU01_CACHE, 'w') as f:
+            json.dump(cache, f, indent=1)
+    except OSError:
+        pass
+
+
+def testu01_battery(battery: str, seed: int, mode: str = "fmix",
+                    timeout: int = 900) -> Dict:
     """Ejecuta la bateria SmallCrush de TestU01 sobre randu_plus.
 
     Requiere el harness `codigos-potenciados/testu01/run_randu_plus` (las
@@ -818,16 +853,24 @@ def testu01_smallcrush(seed: int, mode: str = "fmix",
     el informe lo dice, en vez de callar el resultado."""
     if not os.path.exists(TESTU01_BIN):
         return None
-    proc = subprocess.run([TESTU01_BIN, "smallcrush", mode, str(seed)],
+    key = f"{battery}|{mode}|{seed}"
+    cache = testu01_cache_load()
+    if os.environ.get("RANDU_TESTU01_REUSE") == "1" and key in cache:
+        return cache[key]
+    proc = subprocess.run([TESTU01_BIN, battery, mode, str(seed)],
                           capture_output=True, text=True, timeout=timeout)
     out = proc.stdout
     failed = []
     m = re.search(r"outside \[0\.001, 0\.9990\]:(.*)", out, re.S)
     if m:
-        failed = re.findall(r"^\s*\d+\s+(\S+)", m.group(1), re.M)
+        for line in m.group(1).splitlines():
+            parts = re.split(r"\s{2,}", line.strip())
+            if len(parts) >= 2 and parts[0].isdigit():
+                failed.append(parts[1].strip())
     vm = re.search(r"Version:\s*(TestU01\s+[\d.]+)", out)
     sm = re.search(r"Number of statistics:\s*(\d+)", out)
-    return {
+    entry = {
+        "battery": battery,
         "mode": mode,
         "seed": seed,
         "pass": "All tests were passed" in out,
@@ -836,6 +879,14 @@ def testu01_smallcrush(seed: int, mode: str = "fmix",
         "version": vm.group(1) if vm else "TestU01",
         "n_statistics": int(sm.group(1)) if sm else 0,
     }
+    testu01_cache_store(entry)
+    return entry
+
+
+def testu01_smallcrush(seed: int, mode: str = "fmix",
+                       timeout: int = 900) -> Dict:
+    """Atajo historico: SmallCrush sobre randu_plus."""
+    return testu01_battery("smallcrush", seed, mode, timeout)
 
 
 def main():
@@ -895,6 +946,15 @@ def main():
             testu01.append(state)
             print(f"   state seed={seeds[0]:>10}: {'PASS' if state['pass'] else 'FAIL'} "
                   f"({state['n_failed']} de {state['n_statistics']} estadisticas fuera de rango)")
+        if os.environ.get("RANDU_TESTU01_CRUSH") == "1":
+            print("\n=== TestU01 Crush (lento: ~30 min por modo) ===")
+            for mode in ("fmix", "state"):
+                r = testu01_battery("crush", seeds[0], mode, timeout=3600)
+                if r is None:
+                    continue
+                testu01.append(r)
+                print(f"   {mode:5s} seed={seeds[0]:>10}: {'PASS' if r['pass'] else 'FAIL'} "
+                      f"({r['n_failed']} de {r['n_statistics']} estadisticas fuera de rango)")
     else:
         print("\n=== TestU01 SmallCrush: harness no encontrado, se omite ===")
 
@@ -974,13 +1034,18 @@ def main():
         f.write("\n")
 
         if testu01:
-            f.write("## TestU01 SmallCrush\n\n")
-            f.write("| modo | semilla | resultado | estadisticas fuera de rango |\n")
-            f.write("|------|---------|-----------|------------------------------|\n")
+            f.write("## TestU01 (harness local)\n\n")
+            f.write("| bateria | modo | semilla | resultado | estadisticas fuera de rango |\n")
+            f.write("|---------|------|---------|-----------|------------------------------|\n")
             for r in testu01:
                 mark = '✅ pasan todas' if r['pass'] else '❌ falla'
-                f.write(f"| {r['mode']} | {r['seed']} | {mark} | "
+                bat = r.get('battery', 'smallcrush')
+                f.write(f"| {bat} | {r['mode']} | {r['seed']} | {mark} | "
                         f"{r['n_failed']} de {r['n_statistics']} |\n")
+            for r in [x for x in testu01 if not x['pass'] and x['failed']]:
+                f.write(f"\n- Fallos en `{r.get('battery', 'smallcrush')}` modo "
+                        f"`{r['mode']}`: " + ", ".join(r['failed'][:12]) +
+                        ("..." if len(r['failed']) > 12 else "") + "\n")
             f.write(f"\nVersion: {testu01[0]['version']}. Harness: "
                     "`codigos-potenciados/testu01/run_randu_plus` (fuentes "
                     "versionadas; el binario se construye con el `Makefile` de "

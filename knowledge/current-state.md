@@ -1,9 +1,56 @@
 # Current State
 
-- Goal: **ciclo 20** — corregir la atribución falsa de `msws64` (el módulo NO es
+- Goal: **ciclo 21** — corregir la atribución (segundo pase del revisor): el
+  `msws64_widynski.h` añadido en el ciclo 20 era el **xorshift64\* de Vigna**, no
+  el msws64 de Widynski; renombrar el módulo a `mult_xorshift64/` y añadir al
+  informe los resultados reales de TestU01 (SmallCrush **y** Crush).
+- Stage: **ciclo 21 verificado, pendiente commit/push** (nota completa en
+  `notes/2026-11-20.md`).
+  - **Hecho medido (atribución)**: el msws64 de Widynski (2017) usa **cuadrado +
+    incremento de Weyl + rotación de 32 bits** (`x = x*x; w += s; x += w;
+    x = rotl(x,32)`), no xorshift 12/25/27 + multiplicador. En `octave-mcp` hay
+    **dos** implementaciones con el mismo nombre: `middle_square_weyl_tool.py` y
+    `hybrid_prng_tool.py` tienen la estructura correcta de Widynski
+    (incremento `0xB5AD4ECEDA1CE2A9`); `lcg_lehmer_tool.py` lleva la cadena
+    mult-xorshift mal etiquetada — origen del error propagado al repo C.
+  - **Cambios**: `msws64/` → **`mult_xorshift64/`** (`git mv`, archivos
+    `mult_xorshift64.{h,c}`, tipo `mult_xorshift64_t`,
+    `mult_xorshift64_seed/next/next_double/next_bounded`);
+    `msws64_widynski.h` reescrito como Widynski genuino (cuadrado + Weyl +
+    rotl32, incremento documentado); símbolos del híbrido LCG
+    `hybrid_lcg_msws_*` → `hybrid_lcg_mult_xorshift_*`,
+    `msws64_pure_next` → `mult_xorshift64_pure_next`; actualizados
+    `middle_square/*`, `lcg_lehmer/*`, `hybrid_prng/{README.md,hybrid_prng.h}`,
+    ambas `randu_plus.h`, README raíz, los dos validadores y sus informes.
+    `hybrid_prng/hybrid_prng.c` NO se tocó (WIP ajeno). Descripción pública de
+    GitHub corregida (ya no dice "corregidos matemáticamente" ni nombra msws64).
+  - **TestU01 (harness local, TestU01 1.2.3)**: SmallCrush (15 estadísticas):
+    estado crudo → **falla 14/15**; salida `fmix32` → **pasa 15/15** en las 8
+    semillas. **Crush (144 estadísticas)**: estado crudo → **131/144** fuera de
+    rango; salida `fmix32` → **6/144** (Gap r=0 y r=22, MaxOft t=5/10/20/30).
+    → `fmix32` **no** borra la estructura ni a escala Crush.
+    El validador acepta `RANDU_TESTU01_CRUSH=1` (lento, ~30 min por modo y
+    semilla) y cachea resultados en
+    `codigos-potenciados/testu01/.testu01_cache.json`
+    (ignorada por git); `RANDU_TESTU01_REUSE=1` reutiliza la cache.
+  - **Verificación**: `mult_xorshift64.c` con `-Werror` y 5/5 iteraciones
+    distintas del msws64 de Widynski; `middle_square_test` 17/17;
+    `lcg_lehmer_test` (RANDU 15 planos, MINSTD 764 planos); `hybrid_prng_test`
+    PASS; `prng_modules_validator.py` → PASS (mult_xorshift64 0/56,
+    hybrid_prng 1/56 p=0.00757203, LCG+mult_xorshift64 0/56, control limpio
+    0/56, control negativo 15 planos / crudo p=0.0 / unmix=True);
+    `randu_plus_validator.py` → **10/10** con la sección TestU01 (SmallCrush +
+    Crush); `ruff` limpio en `prng_modules_validator.py` (10 hallazgos
+    preexistentes en `randu_plus_validator.py`).
+  - **Pendiente**: commit + push de este ciclo (push solo con pedido
+    explícito); `hybrid_prng/hybrid_prng.c:7` (WIP ajeno, sigue atribuyendo a
+    Widynski) y `bench/prng_bench.c:8` (untracked) → corregir cuando el
+    usuario libere esos archivos; copia de `VALIDATION_REPORT.md` para el
+    revisor (no puede abrir URLs de GitHub).
+- Goal anterior: **ciclo 20** — corregir la atribución falsa de `msws64` (el módulo NO es
   el msws64 de Widynski 2017) y declarar que su período no está verificado.
 - Stage: **ciclo 20 cerrado y verificado** (nota completa en `notes/2026-11-20.md`).
-  - **Hecho medido**: el módulo `codigos-potXAld/matematica_ancestral/msws64.h`
+  - **Hecho medido**: el módulo `codigos-potenciados/msws64.h`
     es una cadena de multiplicación-xorshift de 3 rondas (salida = estado); el
     msws64 canónico de Widynski es xorshift 12/25/27 + multiplicador
     `0x2545F4914F6CDD1D`. **5 de 5 iteraciones difieren desde la primera**

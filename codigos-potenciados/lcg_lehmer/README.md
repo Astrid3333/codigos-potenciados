@@ -24,7 +24,7 @@ descubierto por Marsaglia 1968).
 Verifica si el LCG alcanza su período máximo posible.
 
 ### 3. Híbrido LCG + generador de 64 bits
-Combina LCG con el generador de 64 bits del módulo `msws64/` (cadena de
+Combina LCG con el generador de 64 bits del módulo `mult_xorshift64/` (cadena de
 multiplicación-xorshift; **no** es el msws64 de Widynski) mediante XOR para
 obtener buena distribución sin depender de un solo mecanismo.
 
@@ -64,7 +64,7 @@ gcc -std=c11 -O2 lcg_lehmer.c lcg_lehmer_test.c -o lcg_lehmer_test -lm
 
 ## Integración con el resto del proyecto
 
-- `codigos-potenciados/msws64/` — generador msws64 puro
+- `codigos-potenciados/mult_xorshift64/` — generador mult-xorshift64 puro
 - `codigos-potenciados/goertzel/` — algoritmo Goertzel K/α/β/híbrido
 - `codigos-potenciados/randu_plus.c` — RANDU + fmix32
 

@@ -6,7 +6,7 @@
  * la izquierda), es decir  x' = (x*x / 100) mod 10000.
  *
  * Es el mismo criterio que usa la funcion estatica `ms_next_4` de
- * ../msws64/msws64.c (que no se exporta), por lo que este modulo es
+ * ../mult_xorshift64/mult_xorshift64.c (que no se exporta), por lo que este modulo es
  * intercambiable con ella.
  */
 

@@ -4,8 +4,8 @@
 
 **Semillas:** 12345, 1, 3, 7, 4242, 65537, 99991, 2147483647 (8 semillas impares distintas)
 **Muestra por semilla:** 1000000 uint32 (4.0 MB)
-**Fecha:** Fri Nov 20 11:43:02 AM -03 2026
-**Git commit:** ac34dd000f7b97e89b1ff28c6813676c333e22c7
+**Fecha:** Fri Nov 20 04:01:57 PM -03 2026
+**Git commit:** 9ec1837805dee41d7cfe8d36eb76b941ec2bc87f
 
 ## Resultados (peor caso entre semillas)
 
@@ -48,19 +48,27 @@
 | NIST_BlockFreq | 100000 | 3200000 |
 | NIST_Runs | 100000 | 3200000 |
 
-## TestU01 SmallCrush
+## TestU01 (harness local)
 
-| modo | semilla | resultado | estadisticas fuera de rango |
-|------|---------|-----------|------------------------------|
-| fmix | 12345 | ✅ pasan todas | 0 de 15 |
-| fmix | 1 | ✅ pasan todas | 0 de 15 |
-| fmix | 3 | ✅ pasan todas | 0 de 15 |
-| fmix | 7 | ✅ pasan todas | 0 de 15 |
-| fmix | 4242 | ✅ pasan todas | 0 de 15 |
-| fmix | 65537 | ✅ pasan todas | 0 de 15 |
-| fmix | 99991 | ✅ pasan todas | 0 de 15 |
-| fmix | 2147483647 | ✅ pasan todas | 0 de 15 |
-| state | 12345 | ❌ falla | 14 de 15 |
+| bateria | modo | semilla | resultado | estadisticas fuera de rango |
+|---------|------|---------|-----------|------------------------------|
+| smallcrush | fmix | 12345 | ✅ pasan todas | 0 de 15 |
+| smallcrush | fmix | 1 | ✅ pasan todas | 0 de 15 |
+| smallcrush | fmix | 3 | ✅ pasan todas | 0 de 15 |
+| smallcrush | fmix | 7 | ✅ pasan todas | 0 de 15 |
+| smallcrush | fmix | 4242 | ✅ pasan todas | 0 de 15 |
+| smallcrush | fmix | 65537 | ✅ pasan todas | 0 de 15 |
+| smallcrush | fmix | 99991 | ✅ pasan todas | 0 de 15 |
+| smallcrush | fmix | 2147483647 | ✅ pasan todas | 0 de 15 |
+| smallcrush | state | 12345 | ❌ falla | 14 de 15 |
+| crush | fmix | 12345 | ❌ falla | 6 de 144 |
+| crush | state | 12345 | ❌ falla | 131 de 144 |
+
+- Fallos en `smallcrush` modo `state`: BirthdaySpacings, Collision, Gap, SimpPoker, CouponCollector, MaxOft, WeightDistrib, MatrixRank, HammingIndep, RandomWalk1 H, RandomWalk1 M, RandomWalk1 J...
+
+- Fallos en `crush` modo `fmix`: Gap, r = 0, Gap, r = 22, MaxOft, t = 5, MaxOft, t = 10, MaxOft, t = 20, MaxOft, t = 30
+
+- Fallos en `crush` modo `state`: SerialOver, t = 2, SerialOver, t = 4, CollisionOver, t = 2, CollisionOver, t = 2, CollisionOver, t = 4, CollisionOver, t = 4, CollisionOver, t = 8, CollisionOver, t = 8, CollisionOver, t = 20, CollisionOver, t = 20, BirthdaySpacings, t = 2, BirthdaySpacings, t = 3...
 
 Version: TestU01 1.2.3. Harness: `codigos-potenciados/testu01/run_randu_plus` (fuentes versionadas; el binario se construye con el `Makefile` de ese directorio).
 
@@ -93,8 +101,8 @@ de los valores entre semillas, no el de una ejecución afortunada.
   de RANDU ni un periodo corto. El periodo real del generador es **2^30** y el
   retículo es recuperable por la recurrencia `x[n+2] = 6·x[n+1] - 9·x[n]`;
   eso está documentado en `randu_plus.h`, que recomienda explícitamente
-  `msws64/` o `hybrid_prng/` para uso real (el módulo `msws64/` es un
-  generador de 64 bits mult-xorshift; **no** es el msws64 de Widynski).
+  `mult_xorshift64/` o `hybrid_prng/` para uso real (el generador de 64 bits
+  del repo se llama así desde el 2026-11-20; **no** es el msws64 de Widynski).
 - `fmix32` (el post-proceso de MurmurHash) es una **biyección**: reordena los
   estados de RANDU pero no añade entropía ni rompe el retículo.
 - El recuento dice "el flujo **parece** aleatorio a estas escalas", no "el
@@ -134,18 +142,28 @@ caja negra, pero la estructura se recupera desde la propia salida.
 SmallCrush (15 estadísticas) **sí detecta** el retículo cuando recibe el
 **estado crudo** del LCG: en modo `state` fallan 14 de las 15 estadísticas con
 p-value ~0. En modo `fmix` (la salida de `randu_plus()`) **pasan las 15** en
-las 8 semillas medidas. Es decir: `fmix32` borra la estructura
-*observable* en caja negra, pero no la elimina (fmix32 es invertible) y el
-periodo sigue siendo 2^30. Para uso real, `msws64/` o `hybrid_prng/` (el
+las 8 semillas medidas.
+
+La batería **Crush** (144 estadísticas, 10 veces más que SmallCrush) va más
+allá: la salida mezclada **sí falla** (Gap y MaxOft fuera de rango), mientras
+que el estado crudo falla de forma masiva. Es decir: `fmix32` borra la
+estructura *observable* en caja negra a escala SmallCrush, pero ni siquiera
+eso a escala Crush, y desde luego no la elimina (fmix32 es invertible) ni
+cambia el periodo, que sigue siendo 2^30. Para uso real,
+`mult_xorshift64/` o `hybrid_prng/`.
 generador de 64 bits del módulo `msws64/`; **no** es el msws64 de Widynski).
 
 El harness de TestU01 está **versionado** en `codigos-potenciados/testu01/`
 (fuentes y `Makefile`); los binarios `run_randu_plus` y `lattice_recovery` no se
 versionan y se construyen con
 `make -C codigos-potenciados/testu01 TESTU01_HOME=/ruta/a/testu01`. Los números
-de esa sección se midieron con el binario local `run_randu_plus`. Si el harness
-no está, el validador omite la sección en vez de reportar un resultado
-inventado.
+de esa sección se midieron con el binario local `run_randu_plus` (TestU01
+1.2.3). Si el harness no está, el validador omite la sección en vez de
+reportar un resultado inventado.
+
+La batería Crush es lenta (~30 min por modo y semilla). Para incluirla en el
+informe hay que ejecutar el validador con `RANDU_TESTU01_CRUSH=1`; sin esa
+variable solo se ejecuta SmallCrush y el informe lo dice.
 
 ### Muestra realmente consumida
 

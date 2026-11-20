@@ -66,14 +66,14 @@ int main(void) {
            p_minstd.period, p_minstd.full_period, p_minstd.zero_sink);
     printf("\n");
 
-    /* ---------- 4. Híbrido LCG + msws64 ---------- */
-    printf("4. HÍBRIDO LCG + msws64\n");
-    hybrid_lcg_msws_t h;
-    hybrid_lcg_msws_seed(&h, 1234ULL);
+    /* ---------- 4. Híbrido LCG + mult-xorshift64 ---------- */
+    printf("4. HÍBRIDO LCG + mult_xorshift64\n");
+    hybrid_lcg_mult_xorshift_t h;
+    hybrid_lcg_mult_xorshift_seed(&h, 1234ULL);
     printf("   Primeros 10 valores híbridos:\n");
     for (int i = 0; i < 10; i++) {
         printf("     %2d: %llu\n", i + 1,
-               (unsigned long long)hybrid_lcg_msws_next(&h));
+               (unsigned long long)hybrid_lcg_mult_xorshift_next(&h));
     }
     printf("\n");
 
@@ -100,7 +100,7 @@ int main(void) {
     printf("\n");
     printf("  Conclusión: RANDU falla el test espectral en 3D (solo ~15 planos).\n");
     printf("  MINSTD es mejor pero sigue siendo LCG lineal.\n");
-    printf("  Para uso real: usar msws64 o híbrido LCG+msws64.\n");
+    printf("  Para uso real: usar mult_xorshift64 o híbrido LCG+mult_xorshift64.\n");
 
     return 0;
 }

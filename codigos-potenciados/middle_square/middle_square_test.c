@@ -5,12 +5,12 @@
  */
 
 #include "middle_square.h"
-#include "../msws64/msws64.h"
+#include "../mult_xorshift64/mult_xorshift64.h"
 #include <stdio.h>
 #include <string.h>
 
 /* Referencia: copia literal de la funcion estatica ms_next_4 de
- * ../msws64/msws64.c (aqui no es exportada) para comprobar equivalencia */
+ * ../mult_xorshift64/mult_xorshift64.c (aqui no es exportada) para comprobar equivalencia */
 static uint16_t ms_next_4(uint16_t x) {
     uint32_t sq = (uint32_t)x * (uint32_t)x;
     char s[12];
@@ -52,7 +52,7 @@ static double chi_cuadrado(const unsigned long long cuentas[], unsigned int bins
 
 int main(void) {
     /* Secuencia medida de la semilla 1234 (verificada con el criterio de
-     * msws64.c: 4 digitos centrales del cuadrado con 8 digitos) */
+     * mult_xorshift64.c: 4 digitos centrales del cuadrado con 8 digitos) */
     static const unsigned int esperada_1234[] = {
         1234, 5227, 3215, 3362, 3030, 1809, 2724, 4201, 6484, 422, 1780, 1684,
         8358, 8561, 2907, 4506, 3040, 2416, 8370, 569, 3237, 4781, 8579, 5992,
@@ -104,7 +104,7 @@ int main(void) {
             }
             x = ms_next_4(x);
         }
-        verificar("el paso coincide con ms_next_4 de msws64.c", coincide);
+        verificar("el paso coincide con ms_next_4 de mult_xorshift64.c", coincide);
     }
     verificar("la semilla 1234 termina en el sumidero 0",
               secuencia[escritos - 1U] == 0U);
@@ -181,16 +181,16 @@ int main(void) {
                   sumideros == 1968U);
     }
 
-    printf("\n--- Comparacion con msws64 ---\n");
+    printf("\n--- Comparacion con mult_xorshift64 ---\n");
     memset(cuentas_ms, 0, sizeof(cuentas_ms));
     memset(cuentas_von, 0, sizeof(cuentas_von));
     {
-        /* msws64: 100000 muestras con 64 bits de estado */
-        msws64_t msws;
+        /* generador de 64 bits: 100000 muestras */
+        mult_xorshift64_t msws;
         unsigned int j;
-        msws64_seed(&msws, 20261113ULL);
+        mult_xorshift64_seed(&msws, 20261113ULL);
         for (j = 0U; j < 100000U; ++j) {
-            uint64_t v = msws64_next(&msws);
+            uint64_t v = mult_xorshift64_next(&msws);
             /* los 32 bits altos se escalan a 10 bins sin sesgo */
             unsigned int bin = (unsigned int)((((uint64_t)(v >> 32)) * 10ULL) >> 32);
             cuentas_ms[bin % 10U]++;
@@ -210,21 +210,21 @@ int main(void) {
         double chi_ms = chi_cuadrado(cuentas_ms, 10U, suma_ms);
         double chi_von = chi_cuadrado(cuentas_von, 10U, suma_von);
         /* valor critico de 9 grados de libertad al 99%: 21.67 */
-        verificar("msws64 se ve uniforme (chi2 < 21.67)", chi_ms < 21.67);
+        verificar("mult_xorshift64 se ve uniforme (chi2 < 21.67)", chi_ms < 21.67);
         verificar("el mapa middle-square tiene sesgo de cuadrados (chi2 > 21.67)",
                   chi_von > 21.67);
-        printf("        chi2 msws64 = %.2f | chi2 middle-square = %.2f\n",
+        printf("        chi2 mult_xorshift64 = %.2f | chi2 middle-square = %.2f\n",
                chi_ms, chi_von);
     }
     {
-        /* misma media, distinta dispersion: msws64 recorre todo el rango */
-        msws64_t msws;
+        /* misma media, distinta dispersion: mult_xorshift64 recorre todo el rango */
+        mult_xorshift64_t msws;
         double minimo = 1.0;
         double maximo = 0.0;
         unsigned int j;
-        msws64_seed(&msws, 99ULL);
+        mult_xorshift64_seed(&msws, 99ULL);
         for (j = 0U; j < 1000U; ++j) {
-            double d = msws64_next_double(&msws);
+            double d = mult_xorshift64_next_double(&msws);
             if (d < minimo) {
                 minimo = d;
             }
@@ -232,7 +232,7 @@ int main(void) {
                 maximo = d;
             }
         }
-        verificar("msws64 recorre todo el intervalo [0, 1)",
+        verificar("mult_xorshift64 recorre todo el intervalo [0, 1)",
                   minimo < 0.01 && maximo > 0.99);
     }
 
