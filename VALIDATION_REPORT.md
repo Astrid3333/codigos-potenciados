@@ -1,24 +1,26 @@
 # Informe de Validación randu_plus
 
+**Estudio didáctico, no homologación.** Este informe mide el comportamiento estadístico de una demostración de por qué RANDU no es un buen generador (ver `randu_plus.h`). No certifica ningún estándar (ISO/IEC 23837, PractRand) ni calidad criptográfica. Para generar números de calidad, este repo recomienda `msws64/`, `hybrid_prng/` o el híbrido LCG+msws64 de `lcg_lehmer/`.
+
 **Semillas:** 12345, 1, 3, 7, 4242, 65537, 99991, 2147483647 (8 semillas impares distintas)
 **Muestra por semilla:** 1000000 uint32 (4.0 MB)
-**Fecha:** Fri Nov 20 01:34:15 AM -03 2026
-**Git commit:** 53b1e6810236cb030ba4961e039da4577ef21bca
+**Fecha:** Fri Nov 20 02:23:57 AM -03 2026
+**Git commit:** 2fdd101ee41f3b6f882ff83b5e692afa01e11d7a
 
 ## Resultados (peor caso entre semillas)
 
 | Test | metrica | peor caso | semilla | pass |
 |------|---------|-----------|---------|------|
 | Spectral3D | ratio | 0.982369 | 3 | ✅ |
-| MarsagliaSpectral3D | p_value | 0.106094 | 1 | ✅ |
+| MarsagliaSpectral3D | p_value | 0.116664 | 4242 | ✅ |
 | BirthdaySpacings | p_value | 0.149875 | 3 | ✅ |
-| Permutation | p_value | 0.024850 | 3 | ✅ |
+| Permutation | p_value | 0.079405 | 3 | ✅ |
 | NIST_Frequency | p_value | 0.034827 | 1 | ✅ |
-| NIST_BlockFreq | p_value | 0.145194 | 65537 | ✅ |
+| NIST_BlockFreq | p_value | 0.223425 | 65537 | ✅ |
 | NIST_Runs | p_value | 0.255144 | 99991 | ✅ |
 | HeaderCrossCheck | bit a bit | 1000 valores x 5 semillas x 2 headers | - | ✅ |
 | HeaderSync | sha256 | 2 copias de randu_plus.h | - | ✅ |
-| LatticeNegativeControl | p + planos | 150000 uint32, semilla 12345 | - | ✅ |
+| LatticeNegativeControl | p + planos | 600000 uint32, semilla 12345 | - | ✅ |
 
 **Total: 10/10 pasados**
 
@@ -27,11 +29,11 @@
 | Test | 12345 | 1 | 3 | 7 | 4242 | 65537 | 99991 | 2147483647 |
 |---|---|---|---|---|---|---|---|---|
 | Spectral3D | 1.0040 | 1.0003 | 0.9824 | 1.0003 | 1.0017 | 1.0040 | 0.9930 | 0.9937 |
-| MarsagliaSpectral3D | 0.9185 | 0.1061 | 0.7557 | 0.7340 | 0.8240 | 0.5236 | 0.6950 | 0.5773 |
+| MarsagliaSpectral3D | 0.6939 | 0.7241 | 0.5184 | 0.7478 | 0.1167 | 0.5787 | 0.3925 | 0.6540 |
 | BirthdaySpacings | 0.2208 | 0.3101 | 0.1499 | 0.9521 | 0.4149 | 0.5293 | 0.5293 | 0.1499 |
-| Permutation | 0.9620 | 0.3751 | 0.0249 | 0.2517 | 0.7218 | 0.7539 | 0.2955 | 0.0807 |
+| Permutation | 0.8912 | 0.4026 | 0.0794 | 0.3104 | 0.6533 | 0.6786 | 0.3440 | 0.1559 |
 | NIST_Frequency | 0.8736 | 0.0348 | 0.8881 | 0.9133 | 0.2360 | 0.5241 | 0.7242 | 0.8552 |
-| NIST_BlockFreq | 0.9925 | 0.4681 | 0.7258 | 0.4283 | 0.7363 | 0.1452 | 0.2497 | 0.8672 |
+| NIST_BlockFreq | 0.9560 | 0.4722 | 0.6595 | 0.4440 | 0.6677 | 0.2234 | 0.3118 | 0.7805 |
 | NIST_Runs | 0.6379 | 0.3192 | 0.8740 | 0.7825 | 0.6816 | 0.6256 | 0.2551 | 0.5460 |
 
 ## Muestra realmente consumida por test
@@ -39,7 +41,7 @@
 | Test | uint32 consumidos | bits |
 |------|-------------------|------|
 | Spectral3D | 150000 | - |
-| MarsagliaSpectral3D | 150000 | 4800000 |
+| MarsagliaSpectral3D | 600000 | 19200000 |
 | BirthdaySpacings | 20000 | - |
 | Permutation | 50000 | - |
 | NIST_Frequency | 1000000 | 32000000 |
@@ -64,11 +66,11 @@ Version: TestU01 1.2.3. Harness: `codigos-potenciados/testu01/run_randu_plus` (f
 
 ## Control negativo: el retículo se detecta y se recupera
 
-El control usa 150000 uint32 del generador del repo (semilla 12345) y contrasta la **salida mezclada** (`fmix32`) con el **estado crudo** del LCG.
+El control usa 600000 uint32 del generador del repo (semilla 12345) y contrasta la **salida mezclada** (`fmix32`) con el **estado crudo** del LCG.
 
 | flujo | p espectral 3D (Marsaglia) | planos del retículo | veredicto |
 |------|----------------------------|----------------------|----------|
-| salida mezclada (`randu_plus()`) | 0.919006 | no aplica (no es retículo) | ✅ no detecta |
+| salida mezclada (`randu_plus()`) | 0.693457 | no aplica (no es retículo) | ✅ no detecta |
 | estado crudo del LCG | 0 | 15 planos (k = [-9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5]) | ✅ detecta |
 | estado recuperado con `unfmix32` desde la salida | 0 | 15 planos | ✅ detecta |
 

@@ -1,7 +1,15 @@
 #!/usr/bin/env python3
 """
 randu_plus_validator.py - Suite estadística autocontenida para randu_plus
-Implementa tests equivalentes a TestU01 SmallCrush + spectral 3D + NIST SP 800-22 básico
+
+AVISO IMPORTANTE: esta suite **NO es TestU01**. Son implementaciones propias
+inspiradas en NIST SP 800-22 (frecuencia monobit, frecuencia por bloques,
+rachas), en el espaciado de cumpleaños y en el test espectral 3D de Marsaglia.
+Los p-values son aproximados (Wilson-Hilferty) en unos tests y exactos
+(gamma incompleta) en el espectral; no son los p-values oficiales de TestU01.
+El SmallCrush REAL de TestU01 se ejecuta aparte, con el harness
+`codigos-potenciados/testu01/run_randu_plus`, y sus resultados se incorporan al
+informe en su propia sección.
 """
 
 import struct
@@ -433,7 +441,7 @@ def fmix32_unmix32(y: int) -> int:
     return y
 
 
-def lattice_negative_control(seed: int = 12345, n_values: int = 150000,
+def lattice_negative_control(seed: int = 12345, n_values: int = 600000,
                              k: int = 16) -> Dict:
     """Control negativo: el reticulo se ve en el estado crudo y se recupera
     desde la salida de `randu_plus()`.
@@ -460,8 +468,8 @@ def lattice_negative_control(seed: int = 12345, n_values: int = 150000,
 
     planes_raw = lattice_plane_count(raw)
     planes_recovered = lattice_plane_count(recovered)
-    spectral_raw = marsaglia_spectral_test(raw, k=k, n_tuples=50000)
-    spectral_mixed = marsaglia_spectral_test(mixed, k=k, n_tuples=50000)
+    spectral_raw = marsaglia_spectral_test(raw, k=k, n_tuples=200000)
+    spectral_mixed = marsaglia_spectral_test(mixed, k=k, n_tuples=200000)
 
     return {
         "seed": seed,
@@ -530,14 +538,17 @@ def permutation_test(data: List[int], n: int = 10000) -> Dict:
     counts = Counter(permutations)
     expected = len(permutations) / 120.0  # 5! = 120
     chi2 = sum((c - expected)**2 / expected for c in counts.values())
-    # df = 120 - 1 = 119
-    p_val = chi2_sf(chi2, 119)
-    
+    # df = 120 - 1 = 119. P-value EXACTO (gamma incompleta): la aproximacion
+    # Wilson-Hilferty se calibro contra /dev/urandom y produjo falsos FAIL en
+    # la cola (p_WH=0.0071 donde el p exacto era 0.0404).
+    p_val = chi2_sf_exact(chi2, 119)
+
     return {
         "observed_perms": len(counts),
         "expected_perms": 120,
         "chi2": chi2,
         "p_value": p_val,
+        "p_wilson_hilferty": chi2_sf(chi2, 119),
         "n_values": len(permutations) * 5,
         "pass": p_val > 0.01
     }
@@ -575,14 +586,17 @@ def nist_block_frequency(data: List[int], block_size: int = 10000) -> Dict:
         pi = sum(block) / block_size
         chi2 += 4.0 * block_size * (pi - 0.5)**2
     
-    # df = n_blocks
-    p_val = chi2_sf(chi2, n_blocks)
+    # df = n_blocks. P-value EXACTO (gamma incompleta): la aproximacion
+    # Wilson-Hilferty se calibro contra /dev/urandom y produjo falsos FAIL en
+    # la cola (p_WH=0.00045 donde el p exacto era 0.0091).
+    p_val = chi2_sf_exact(chi2, n_blocks)
     return {
         "n_blocks": n_blocks,
         "n_bits": len(bits),
         "n_values": min(len(data), 100000),
         "chi2": chi2,
         "p_value": p_val,
+        "p_wilson_hilferty": chi2_sf(chi2, n_blocks),
         "pass": p_val > 0.01
     }
 
@@ -735,10 +749,17 @@ batería y reescribe este archivo). Las semillas del barrido son
 """
 
 def run_stat_tests(data: List[int]) -> Dict:
-    """Ejecuta la bateria estadistica de primer orden sobre un flujo."""
+    """Ejecuta la bateria estadistica de primer orden sobre un flujo.
+
+    El test espectral de Marsaglia usa 200000 tuplas (no 50000): con 50000
+    tuplas la ocupacion media por celda de la rejilla 16^3 es 12,2 y el
+    p-value fluctua mucho (se midieron p=0.0004 con 50000 tuplas y p=0.075
+    con 200000 sobre el MISMO flujo, o sea ruido del test y no defecto del
+    generador). Con 200000 tuplas la ocupacion media es 48,8 y el p-value es
+    estable."""
     return {
         "Spectral3D": spectral_test_3d(data, 50000),
-        "MarsagliaSpectral3D": marsaglia_spectral_test(data, 16, 50000),
+        "MarsagliaSpectral3D": marsaglia_spectral_test(data, 16, 200000),
         "BirthdaySpacings": birthday_spacings(data),
         "Permutation": permutation_test(data),
         "NIST_Frequency": nist_frequency(data),
@@ -899,6 +920,13 @@ def main():
         commit_str = subprocess.run(['git', 'rev-parse', 'HEAD'],
                                     capture_output=True, text=True).stdout.strip()
         f.write("# Informe de Validación randu_plus\n\n")
+        f.write("**Estudio didáctico, no homologación.** Este informe mide el "
+                "comportamiento estadístico de una demostración de por qué RANDU "
+                "no es un buen generador (ver `randu_plus.h`). No certifica "
+                "ningún estándar (ISO/IEC 23837, PractRand) ni calidad "
+                "criptográfica. Para generar números de calidad, este repo "
+                "recomienda `msws64/`, `hybrid_prng/` o el híbrido LCG+msws64 "
+                "de `lcg_lehmer/`.\n\n")
         f.write(f"**Semillas:** {', '.join(str(s) for s in seeds)} "
                 f"({len(seeds)} semillas impares distintas)\n")
         f.write(f"**Muestra por semilla:** {n_values} uint32 "

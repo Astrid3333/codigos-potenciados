@@ -2,7 +2,12 @@
  *
  * ESTO NO ES UN MEJORAMIENTO DE RANDU. Es una demostración de por qué no lo es.
  *
- * RANDU histórico: x[n+1] = 65539 * x[n] mod 2^32, multiplicador 65539 = 2^16 + 3.
+ * RANDU: multiplicador 65539 = 2^16 + 3. OJO: el RANDU histórico de Knuth
+ * (Wikipedia) usa módulo 2^31 y tiene período 2^29 con semilla impar; este
+ * repo usa una VARIANTE con módulo 2^32, cuyo período real es 2^30 (medido,
+ * ver randu_plus.c). No son el mismo generador, aunque compartan el
+ * multiplicador y el mismo defecto de planos.
+ *
  * Su defecto de planos (el estado cumple x[n+2] = 6*x[n+1] - 9*x[n] mod 2^32)
  * hace que los puntos caigan en un número reducido de planos del espacio 3D,
  * y por eso falla el test espectral 3D.

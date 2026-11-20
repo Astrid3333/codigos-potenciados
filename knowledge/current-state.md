@@ -1,6 +1,32 @@
 # Current State
 
-- Goal: **ciclo 17** — prueba directa del retículo de RANDU pedida por el
+- Goal: **ciclo 19** — medir con evidencia los generadores de 64 bits del repo
+  (`msws64`, `hybrid_prng`, híbrido LCG+msws64) con la misma batería que
+  `randu_plus_validator.py`, y con controles limpio (`/dev/urandom`) y
+  defectuoso (estado crudo de `randu_plus`).
+- Stage: **ciclo 19 cerrado y verificado** (nota completa en `notes/2026-11-20.md`).
+  - **Nuevo**: `prng_modules_validator.py` (compila drivers C para los tres
+    módulos, 8 semillas × 7 tests = 56 p-values por generador, 1M uint32 por
+    semilla, descomposición natural little-endian) → `VALIDATION_REPORT_PRNG_MODULES.md`.
+  - **Resultados**: `msws64` 0/56 p<0.01 y 0/56 p<0.001; `hybrid_prng` 1/56
+    (NIST_BlockFreq, semilla 65537, p=0.00757203, **reproducible**); LCG+msws64
+    0/56; control limpio `/dev/urandom` 1/56; control negativo 15 planos,
+    crudo p=0.0, mezclado p=0.6935, unmix32 OK.
+  - **Calibraciones que hicieron falta**: p-value exacto (`chi2_sf_exact`) en
+    permutation/block-freq (Wilson-Hilferty daba falsos FAIL con df≈320);
+    descomposición natural (hi/lo intercalado daba falsos FAIL); test espectral
+    de Marsaglia con **200 000 tuplas** (con 50 000 el p-value fluctúa: mismo
+    flujo → 0.000432 vs 0.0751181; el FAIL era ruido del test); criterio por
+    **conteo de falsos positivos** (H0: 0.56 de 56; límite 99,9% = 4) en vez de
+    "los 56 deben pasar".
+  - Cambios: `randu_plus_validator.py` (Marsaglia a 200000 tuplas, control
+    negativo a 600000 valores), `README.md` (tabla de la medición + salvedades
+    honestas), `VALIDATION_REPORT.md` regenerado (**10/10**),
+    `VALIDATION_REPORT_PRNG_MODULES.md` nuevo. `cc -std=c99 -Wall -Wextra
+    -pedantic -Werror randu_plus.c` → 8/8; `ruff` limpio en el script nuevo.
+  - **Pendiente**: push (nunca solicitado explícitamente) y refreshed de las
+    copias `pasted*.txt` para el revisor (no puede abrir URLs de GitHub).
+- Goal anterior: **ciclo 17** — prueba directa del retículo de RANDU pedida por el
   revisor: pegar `randu_plus.h` y `randu_plus_validator.py` (el usuario no
   puede abrirlos en GitHub) y medir, no suponer, la estructura de planos y el
   test espectral 3D sobre la salida **cruda** vs. la **mezclada**.

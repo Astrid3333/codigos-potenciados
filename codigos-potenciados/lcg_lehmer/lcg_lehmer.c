@@ -219,7 +219,10 @@ lcg_period_result_t lcg_period_test(uint64_t a, uint64_t c, uint64_t m,
 
     /* Determinar full_period */
     if (m == (1ULL << 31)) {
-        /* Para m = 2^31, período máximo es 2^29 si a ≡ 3 o 5 (mod 8) */
+        /* Para m = 2^31 (el RANDU histórico de Knuth), el período máximo es
+         * 2^29 si a ≡ 3 o 5 (mod 8). Ojo: este 2^29 es el del RANDU clásico
+         * mod 2^31, NO el del randu_plus del repo, que usa módulo 2^32 y
+         * tiene período 2^30 (medido, ver randu_plus.c). */
         res.full_period = (cycle_len == (1ULL << 29));
     } else if (m == ((1ULL << 31) - 1)) {
         res.full_period = (cycle_len == m - 1);

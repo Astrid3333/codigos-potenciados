@@ -2,6 +2,19 @@
 
 Repositorio de trabajo del agente `evolve-agent`. Contiene código C bajo `codigos-potenciados/` con implementaciones de algoritmos numéricos y PRNGs, listos para uso embebido (Arduino/AVR compatible).
 
+> ## Aviso (léase primero)
+>
+> - **`randu_plus` NO es una mejora de RANDU.** Es una *demostración didáctica*
+>   de por qué no lo es: `fmix32` es una biyección, así que la salida determina
+>   el estado y el retículo de planos (15 planos, medido) sigue siendo
+>   recuperable. Su período real es 2³⁰. Se conserva como ejemplo histórico.
+> - **Lo que sí mejoró RANDU está en otros módulos**, y esos son los que deben
+>   usarse: `msws64/` (Widynski 2017, 64 bits), `hybrid_prng/`
+>   (middle-square + msws64) y el **híbrido LCG+msws64** de `lcg_lehmer/`.
+> - **Los informes de este repo son estudios, no homologaciones.** Nada de lo
+>   que hay aquí certifica un estándar (ISO/IEC 23837, PractRand) ni una
+>   calidad criptográfica. Lo que sí hacen es *medir* con p-values publicables.
+
 ## Estructura
 
 | Path | Contenido |
@@ -31,6 +44,64 @@ Repositorio de trabajo del agente `evolve-agent`. Contiene código C bajo `codig
 > sigue siendo recuperable; el período real es 2³⁰. Se conserva como ejemplo
 > histórico con la advertencia explícita, y el propio test lo verifica (8/8).
 > Para generar números usa `codigos-potenciados/msws64/`.
+>
+> **Ojo con el nombre:** el RANDU histórico de Knuth usa módulo 2³¹ y período
+> 2²⁹; este repo usa una **variante con módulo 2³²** y período **2³⁰** (medido,
+> ver `randu_plus.c`). Comparten multiplicador (65539) y defecto de planos, pero
+> no son el mismo generador.
+
+## Generadores que sí son utilizables (lo que mejoró RANDU)
+
+Si lo que interesa es producir números pseudoaleatorios de calidad, estos son
+los módulos del repo, con su ruta y su test:
+
+| Módulo | Rutas exactas | Qué aporta frente a un LCG lineal |
+|---|---|---|
+| `msws64` | `codigos-potenciados/msws64/msws64.h`, `msws64.c`, `README.md` | PRNG de 64 bits (Widynski 2017), período ~2⁶⁴, periodo y sumidero 0 evitados por construcción |
+| `hybrid_prng` | `codigos-potenciados/hybrid_prng/hybrid_prng.h`, `hybrid_prng.c`, `hybrid_prng_test.c` | middle-square + msws64: el estado entra por el square, la salida sale por msws64 |
+| `lcg_lehmer` | `codigos-potenciados/lcg_lehmer/lcg_lehmer.h`, `lcg_lehmer.c`, `lcg_lehmer_test.c` | análisis espectral de LCG (RANDU, MINSTD), prueba de período, **híbrido LCG+msws64** y TCR-LCG |
+| `middle_square` | `codigos-potenciados/middle_square/` | von Neumann de 4 dígitos con ciclo, sumideros y comparación contra `msws64` (17/17 tests) |
+
+Los tres compilan sin warnings con `gcc -std=c11 -O2 -Wall -Wextra -pedantic` y
+sus tests pasan. `lcg_lehmer_test` **mide** el defecto de RANDU por dentro
+(espectral 3D = 0.0084 → MALO, “solo ~15 planos”) y el de MINSTD (0.4952 →
+aceptable), que es la razón por la que el repo no insiste en RANDU.
+
+### Medición de esos tres generadores (batería propia, 2026-11-20)
+
+`prng_modules_validator.py` mide el flujo de 32 bits de `msws64`,
+`hybrid_prng` y del híbrido LCG+msws64 con 8 semillas × 7 tests (56
+p-values por generador) y dos controles: `/dev/urandom` (limpio, debe
+aprobar) y el estado crudo de `randu_plus` (defectuoso, debe fallar).
+Resultado en `VALIDATION_REPORT_PRNG_MODULES.md`:
+
+| Flujo | p < 0.01 | p < 0.001 | Lectura |
+|---|---|---|---|
+| `/dev/urandom` (control) | 1/56 | 0 | el control limpio también produce algún p<0.01: exigir 56/56 daría falsos FAIL |
+| `msws64` | 0/56 | 0 | sin señal en la batería |
+| `hybrid_prng` | 1/56 | 0 | señal marginal reproducible en `NIST_BlockFreq` (semilla 65537, p=0.00757203) |
+| LCG+msws64 | 0/56 | 0 | sin señal en la batería |
+
+Matices honestos:
+
+- La señal marginal de `hybrid_prng` es **reproducible** (mismo valor en
+  corridas independientes) y queda registrada como señal, no como prueba de
+  defecto: la parte middle-square aporta solo ~13,3 bits por palabra, así que
+  su mitad superior hereda esa limitación aunque el XOR con msws64 la disperse.
+- El FAIL de `NIST_Runs` que se vio antes sobre `/dev/urandom` y el de
+  `MarsagliaSpectral3D` (p=0.00043) sobre LCG+msws64 eran **ruido del test**:
+  el segundo desaparece al pasar de 50 000 a 200 000 tuplas sobre el mismo
+  flujo (p=0.0751181). Por eso el test espectral usa 200 000 tuplas.
+- Esto **no es** TestU01 ni PractRand: TestU01 real no está instalado en este
+  entorno y el harness versionado solo cubre `randu_plus`.
+
+Recomendación: para uso general, `msws64` puro (es el único con 0/56 en
+toda la batería). `hybrid_prng` y el híbrido LCG+msws64 pasan, pero con las
+salvedades anteriores.
+
+Lo que **no** hay todavía (y conviene no dar por hecho): un harness de TestU01
+o una corrida de PractRand para `msws64`/`hybrid_prng`. El único harness de
+TestU01 del repo es el de `randu_plus` (`codigos-potenciados/testu01/`).
 
 ## `randu_plus` (ejemplo histórico, no usar para números pseudoaleatorios)
 
