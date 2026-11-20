@@ -9,6 +9,7 @@ import math
 import sys
 import subprocess
 import os
+import tempfile
 from collections import Counter
 from typing import List, Tuple, Dict
 
@@ -25,25 +26,18 @@ def chi2_sf(x: float, df: int) -> float:
 # ────────────────────────────────────────────────────────────────────
 # Generador de datos binarios desde randu_plus (compilado)
 # ────────────────────────────────────────────────────────────────────
-def generate_binary(output_path: str, n_bytes: int, seed: int = 12345) -> None:
-    """Genera n_bytes de salida randu_plus usando el binario compilado."""
-    if not os.path.exists('./randu_plus'):
-        subprocess.run(['gcc', '-std=c11', '-O2', 'randu_plus.c', '-o', 'randu_plus'], check=True)
-    
-    # Modificamos randu_plus.c para salida binaria masiva
-    # Creamos versión temporal
-    with open('randu_plus_bin.c', 'w') as f:
-        f.write('''#include <stdio.h>
+# El generador temporal INCLUYE randu_plus.h. Antes esta funcion embebia una
+# copia del algoritmo, que se desincronizo del header (no hacia el
+# `*s |= 1u` que fuerza semilla impar). Con una semilla impar ambos
+# streamers coinciden bit a bit, pero con semilla par divergen: el validador
+# estaria midiendo un generador que no es el del repo.
+#
+# El fuente temporal se escribe en un directorio temporal, no en la raiz del
+# repo, para no dejar artefactos.
+BIN_DRIVER_SOURCE = r'''#include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-static inline uint32_t randu_plus(uint32_t *s) {
-    *s = 65539u * *s;
-    uint32_t x = *s;
-    x ^= x >> 16; x *= 0x85ebca6bu;
-    x ^= x >> 13; x *= 0xc2b2ae35u;
-    x ^= x >> 16;
-    return x;
-}
+#include "randu_plus.h"
 int main(int argc, char** argv) {
     uint32_t s = (argc > 1) ? (uint32_t)strtoul(argv[1], NULL, 10) : 12345u;
     size_t n = (argc > 2) ? strtoul(argv[2], NULL, 10) : 1000000;
@@ -52,19 +46,103 @@ int main(int argc, char** argv) {
         fwrite(&r, 4, 1, stdout);
     }
     return 0;
-}''')
-    subprocess.run(['gcc', '-std=c11', '-O2', 'randu_plus_bin.c', '-o', 'randu_plus_bin'], check=True)
-    
-    n_uints = n_bytes // 4
-    with open(output_path, 'wb') as out:
-        proc = subprocess.run(['./randu_plus_bin', str(seed), str(n_uints)], 
-                             stdout=out, check=True)
-    print(f"Generados {n_bytes} bytes ({n_uints} uint32) en {output_path}")
+}
+'''
+
+def generate_binary(output_path: str, n_bytes: int, seed: int = 12345, quiet: bool = False) -> None:
+    """Genera n_bytes de salida randu_plus usando el binario compilado."""
+    header_dir = os.path.dirname(os.path.abspath(__file__))
+    with tempfile.TemporaryDirectory() as tmpdir:
+        src_path = os.path.join(tmpdir, 'randu_plus_bin.c')
+        exe_path = os.path.join(tmpdir, 'randu_plus_bin')
+        with open(src_path, 'w') as f:
+            f.write(BIN_DRIVER_SOURCE)
+        subprocess.run(
+            ['gcc', '-std=c11', '-O2', f'-I{header_dir}', src_path, '-o', exe_path],
+            check=True)
+
+        n_uints = n_bytes // 4
+        with open(output_path, 'wb') as out:
+            subprocess.run([exe_path, str(seed), str(n_uints)],
+                           stdout=out, check=True)
+    if not quiet:
+        print(f"Generados {n_bytes} bytes ({n_uints} uint32) en {output_path}")
 
 def load_uint32(path: str) -> List[int]:
     with open(path, 'rb') as f:
         data = f.read()
     return list(struct.unpack(f'<{len(data)//4}I', data))
+
+# ────────────────────────────────────────────────────────────────────
+# Referencia independiente y cross-check contra el header
+# ────────────────────────────────────────────────────────────────────
+MASK32 = 0xFFFFFFFF
+
+def randu_plus_ref(state: int) -> Tuple[int, int]:
+    """Espejo en Python de `randu_plus.h` (LCG RANDU + fmix32).
+
+    Es una referencia independiente del binario: si el header cambia, hay que
+    cambiar esto en el MISMO commit, o el cross-check falla y avisa. Su unico
+    trabajo es detectar que el binario que se valida no es el generador del
+    repo (header equivocado, binario obsoleto, copia embebida...)."""
+    state = (state | 1) & MASK32          # el header fuerza semilla impar
+    state = (65539 * state) & MASK32       # RANDU LCG mod 2^32
+    x = state
+    x ^= x >> 16
+    x = (x * 0x85EBCA6B) & MASK32          # fmix32 (MurmurHash3 finalizer)
+    x ^= x >> 13
+    x = (x * 0xC2B2AE35) & MASK32
+    x ^= x >> 16
+    return x, state
+
+def header_crosscheck(seeds=(12345, 0, 2, 100, 4294967295),
+                      n_values: int = 1000) -> Dict:
+    """Verifica bit a bit que el binario compilado (que incluye
+    `randu_plus.h`) implementa el algoritmo documentado, y que una semilla
+    par produce la MISMA secuencia que su version impar.
+
+    Esta comprobacion es la que habria detectado el fallo original: la copia
+    embebida omitia `*state |= 1u`, asi que con semilla par divergia desde
+    la salida 0 mientras que con semilla impar coincidia."""
+    c_vs_ref = {}
+    even_folded = {}
+    tmpdir = tempfile.mkdtemp(prefix='randu_xcheck_')
+    try:
+        for seed in seeds:
+            path = os.path.join(tmpdir, f'seed_{seed}.bin')
+            generate_binary(path, n_values * 4, seed, quiet=True)
+            data = load_uint32(path)
+
+            st = seed
+            ref = []
+            for _ in range(n_values):
+                r, st = randu_plus_ref(st)
+                ref.append(r)
+            c_vs_ref[seed] = (data[:n_values] == ref)
+
+            if seed & 1 == 0:
+                odd_path = os.path.join(tmpdir, f'seed_{seed | 1}.bin')
+                generate_binary(odd_path, n_values * 4, seed | 1, quiet=True)
+                odd_data = load_uint32(odd_path)
+                even_folded[seed] = (data[:n_values] == odd_data[:n_values])
+    finally:
+        for name in os.listdir(tmpdir):
+            os.unlink(os.path.join(tmpdir, name))
+        os.rmdir(tmpdir)
+
+    return {
+        "pass": all(c_vs_ref.values()) and all(even_folded.values()),
+        "n_values": n_values,
+        "checked_seeds": list(seeds),
+        "c_vs_reference": c_vs_ref,
+        "even_seed_folded_to_odd": even_folded,
+        "detail": ("el binario coincide bit a bit con la referencia en todas "
+                   "las semillas, y las semillas pares se pliegan a su "
+                   "version impar como hace `*state |= 1u` del header")
+        if all(c_vs_ref.values()) and all(even_folded.values())
+        else ("divergencia entre el binario y la referencia: el validador NO "
+              "esta midiendo el generador del repo"),
+    }
 
 # ────────────────────────────────────────────────────────────────────
 # Tests estadísticos
@@ -246,6 +324,55 @@ def dieharder_style_tests(data: List[int]) -> List[Dict]:
 # ────────────────────────────────────────────────────────────────────
 # Main
 # ────────────────────────────────────────────────────────────────────
+# La seccion de honestidad del informe se genera desde aqui, no a mano: asi
+# no se pierde cada vez que el validador regenera el reporte.
+REPORT_CAVEAT = """
+## Qué prueba este informe y qué NO
+
+Este informe mide **propiedades estadísticas del flujo de bits** de la salida
+del generador (distribución, espectro, espaciado de cumpleaños, permutaciones,
+frecuencia, frecuencia por bloques y rachas). Los tests son **tests de
+aleatoriedad estándar**: el mismo criterio con el que se evalúa un generador
+pseudoaleatorio maduro.
+
+**No es una validación del generador `randu_plus`.** En concreto:
+
+- Estos tests **no pueden detectar** el retículo lineal de RANDU ni un periodo
+  corto, porque son tests de primer orden sobre una muestra de {n_values}
+  valores. El periodo real del generador es **2^30** y el retículo es
+  recuperable por la recurrencia `x[n+2] = 6·x[n+1] - 9·x[n]`; eso está
+  documentado en `randu_plus.h`, que recomienda explícitamente `msws64/` o
+  `hybrid_prng/` para uso real.
+- `fmix32` (el post-proceso de MurmurHash) es una **biyección**: reordena los
+  estados de RANDU pero no añade entropía ni rompe el retículo.
+- El recuento dice "el flujo **parece** aleatorio a estas escalas", no "el
+  generador es criptográficamente seguro" ni "cumple ISO/IEC 23837".
+
+Para las propiedades estructurales del generador (biyectividad, periodo,
+recuperación del retículo) está el **test incluido en `randu_plus.c`**, que
+incluye `randu_plus.h` y hace 8 comprobaciones con exit code: es distinto y
+complementario a este informe.
+
+## Qué mide el cross-check contra el header
+
+`generate_binary()` compila un `.c` temporal que **incluye `randu_plus.h`**
+(con `-I` apuntando al directorio del repo), de modo que el flujo binario
+validado es exactamente el generador del repo. El test `HeaderCrossCheck`
+comprueba **bit a bit** los primeros {n_xcheck} valores contra una referencia
+escrita a mano en Python, para las semillas {seeds}, y comprueba además que
+una semilla par produce la misma secuencia que su versión impar (el
+`*state |= 1u` del header).
+
+Si el header cambia, hay que actualizar la referencia en el mismo commit: si
+no, este test falla y lo dice. Ese fallo es intencional: es la alarma que
+impide que el informe vuelva a medir un generador que no sea el del repo.
+
+## Nota de reproducibilidad
+
+El informe se generó con la semilla {seed} sobre {n_mb} MB ({n_values}
+`uint32`). Para reproducir: `python3 randu_plus_validator.py`.
+"""
+
 def main():
     seed = 12345
     n_bytes = 100 * 1024 * 1024  # 100 MB
@@ -296,7 +423,13 @@ def main():
     runs = nist_runs(data)
     all_results.append(("NIST_Runs", runs))
     print(f"   p={runs['p_value']:.6f}")
-    
+
+    # 7. Cross-check contra randu_plus.h (prueba de que lo medido ES el repo)
+    print("\n7. Header Cross-Check (binario vs randu_plus.h)...")
+    xcheck = header_crosscheck()
+    all_results.append(("HeaderCrossCheck", xcheck))
+    print(f"   {xcheck['detail']}")
+
     # Resumen
     print("\n" + "="*60)
     print("RESUMEN DE VALIDACIÓN randu_plus")
@@ -316,9 +449,9 @@ def main():
             passed += 1 if ok else 0
             status = "✅ PASS" if ok else "❌ FAIL"
             print(f"  {name:20s} : {status} (ratio={res['ratio']:.3f})")
-    
+
     print(f"\nTotal: {passed}/{total} tests pasados")
-    
+
     # Generar reporte markdown
     with open('VALIDATION_REPORT.md', 'w') as f:
         f.write(f"# Informe de Validación randu_plus\n\n")
@@ -334,7 +467,16 @@ def main():
                 f.write(f"| {name} | {res['p_value']:.6f} | {'✅' if res['pass'] else '❌'} |\n")
             elif 'ratio' in res:
                 f.write(f"| {name} | ratio={res['ratio']:.3f} | {'✅' if res['ratio']>0.5 else '❌'} |\n")
+            elif name == "HeaderCrossCheck":
+                f.write(f"| {name} | {res['n_values']} valores x {len(res['checked_seeds'])} semillas | "
+                        f"{'✅' if res['pass'] else '❌'} |\n")
         f.write(f"\n**Total: {passed}/{total} pasados**\n")
+        f.write(REPORT_CAVEAT.format(
+            seed=seed,
+            n_mb=f"{n_bytes/1e6:.0f}",
+            n_values=len(data),
+            n_xcheck=xcheck['n_values'],
+            seeds=", ".join(str(s) for s in xcheck['checked_seeds'])))
     
     print("\nReporte guardado en VALIDATION_REPORT.md")
 
