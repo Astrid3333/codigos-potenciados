@@ -9,6 +9,8 @@ randu_plus
 randu_plus_bin
 randu_plus_bin.c
 randu_output.bin
+/codigos-potenciados/testu01/run_randu_plus
+/codigos-potenciados/testu01/lattice_recovery
 *_test
 goertzel_bench
 sine_fixed

@@ -12,10 +12,11 @@
     `n_bits`). Peor caso: Spectral3D 0.982369, BirthdaySpacings 0.149875,
     Permutation 0.024850, NIST_Frequency 0.034827, NIST_BlockFreq 0.145194,
     NIST_Runs 0.255144. Suite **8/8** (incluye `HeaderCrossCheck` y `HeaderSync`).
-  - **TestU01 SmallCrush** integrado vía el harness local del usuario
+  - **TestU01 SmallCrush** integrado vía el harness del usuario
     (`codigos-potenciados/testu01/run_randu_plus`, TestU01 1.2.3 enlazado
-    estáticamente, **no versionado**): modo `fmix` pasa **15/15** en las 8
-    semillas; modo `state` (estado crudo del LCG) **falla 14/15** con p ~0.
+    estáticamente; **fuentes versionadas**, binarios ignorados): modo `fmix`
+    pasa **15/15** en las 8 semillas; modo `state` (estado crudo del LCG)
+    **falla 14/15** con p ~0.
     `fmix32` borra la estructura observable pero no la elimina (biyectivo) y el
     período sigue 2³⁰. Si el harness no está, el validador omite la sección.
   - **Poder discriminante corregido**: `BirthdaySpacings` usaba 5000 muestras en
@@ -25,12 +26,12 @@
   - `VALIDATION_REPORT.md` regenerado: peor caso por test, matriz valor×semilla,
     consumo real de muestra por test, sección TestU01 y caveat reescrito
     (multi-semilla, consumo real vs. los 100 MB antes anunciados, qué detecta
-    TestU01, harness no versionado, reproducibilidad).
+    TestU01, harness versionado pero sin binario, reproducibilidad).
   - `README.md`: sección `randu_plus` (API + cómo reproducir) y typo
     `números_use` corregido. Descripción del repo en GitHub corregida (ya no
     dice "corregidos matemáticamente").
-  - Push **no** hecho (falta pedido explícito). Versionar
-    `codigos-potenciados/testu01/` es decisión del usuario.
+  - Push **hecho** por pedido explícito del usuario; `codigos-potenciados/testu01/`
+    **versionado** por decisión suya (fuentes sí, binarios no).
 - Goal anterior: **ciclo 10** — aplicar la revisión externa (`pasted.txt`) a 4 puntos del repo:
   (1) `sine_fixed.c` roto, (2) `randu_plus` no arregla RANDU, (3) `revivir.c` documentado
   con `frexp/ldexp` y atribución de Aryabhata, (4) el doc de Goertzel con umbrales medidos.

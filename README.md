@@ -73,6 +73,19 @@ detectan el retículo de RANDU. Para eso está la batería de TestU01
 incluido en `randu_plus.c`, que verifica biyectividad, período real y
 recuperación del retículo.
 
+El harness de TestU01 está en `codigos-potenciados/testu01/` (fuentes y
+`Makefile`; los binarios no se versionan). Requiere TestU01 instalado:
+
+```bash
+make -C codigos-potenciados/testu01 TESTU01_HOME=/ruta/a/testu01
+./codigos-potenciados/testu01/run_randu_plus smallcrush state 12345   # debe fallar
+./codigos-potenciados/testu01/run_randu_plus smallcrush fmix  12345   # pasa
+```
+
+`lattice_recovery` (`make -C codigos-potenciados/testu01 check`) demuestra por
+qué: el retículo se **recupera bit a bit** desde la salida de `randu_plus()`,
+porque `fmix32` es invertible.
+
 ## Compilar y probar
 
 Cada módulo es independiente. Ejemplo:

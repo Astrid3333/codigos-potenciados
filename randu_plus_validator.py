@@ -457,10 +457,13 @@ las {n_seeds} semillas medidas. Es decir: `fmix32` borra la estructura
 *observable* en caja negra, pero no la elimina (fmix32 es invertible) y el
 periodo sigue siendo 2^30. Para uso real, `msws64/` o `hybrid_prng/`.
 
-El harness de TestU01 (`codigos-potenciados/testu01/`) **no está versionado**
-en este commit: los números de esa sección se midieron con el binario local
-`run_randu_plus`. Si el harness no está, el validador omite la sección en vez
-de reportar un resultado inventado.
+El harness de TestU01 está **versionado** en `codigos-potenciados/testu01/`
+(fuentes y `Makefile`); los binarios `run_randu_plus` y `lattice_recovery` no se
+versionan y se construyen con
+`make -C codigos-potenciados/testu01 TESTU01_HOME=/ruta/a/testu01`. Los números
+de esa sección se midieron con el binario local `run_randu_plus`. Si el harness
+no está, el validador omite la sección en vez de reportar un resultado
+inventado.
 
 ### Muestra realmente consumida
 
@@ -565,9 +568,9 @@ def testu01_smallcrush(seed: int, mode: str = "fmix",
                        timeout: int = 900) -> Dict:
     """Ejecuta la bateria SmallCrush de TestU01 sobre randu_plus.
 
-    Requiere el harness local `codigos-potocados/testu01/run_randu_plus`, que
-    no esta versionado en el repo. Si no existe se devuelve None y el informe
-    lo dice, en vez de callar el resultado."""
+    Requiere el harness `codigos-potenciados/testu01/run_randu_plus` (las
+    fuentes estan versionadas, el binario no). Si no existe se devuelve None y
+    el informe lo dice, en vez de callar el resultado."""
     if not os.path.exists(TESTU01_BIN):
         return None
     proc = subprocess.run([TESTU01_BIN, "smallcrush", mode, str(seed)],
@@ -708,8 +711,9 @@ def main():
                 f.write(f"| {r['mode']} | {r['seed']} | {mark} | "
                         f"{r['n_failed']} de {r['n_statistics']} |\n")
             f.write(f"\nVersion: {testu01[0]['version']}. Harness: "
-                    "`codigos-potenciados/testu01/run_randu_plus` (local, **no "
-                    "versionado** en este commit).\n")
+                    "`codigos-potenciados/testu01/run_randu_plus` (fuentes "
+                    "versionadas; el binario se construye con el `Makefile` de "
+                    "ese directorio).\n")
         else:
             f.write("## TestU01 SmallCrush\n\nNo ejecutado: el harness "
                     "`codigos-potenciados/testu01/run_randu_plus` no esta "

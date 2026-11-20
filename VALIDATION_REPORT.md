@@ -2,8 +2,8 @@
 
 **Semillas:** 12345, 1, 3, 7, 4242, 65537, 99991, 2147483647 (8 semillas impares distintas)
 **Muestra por semilla:** 1000000 uint32 (4.0 MB)
-**Fecha:** Fri Nov 20 12:47:00 AM -03 2026
-**Git commit:** 42421d2620829697ecbc3717d89a04b7f1ba579e
+**Fecha:** Fri Nov 20 12:55:46 AM -03 2026
+**Git commit:** 05d094845baef78f8d9af80b71b2a147bf7ff80e
 
 ## Resultados (peor caso entre semillas)
 
@@ -56,7 +56,7 @@
 | fmix | 2147483647 | ✅ pasan todas | 0 de 15 |
 | state | 12345 | ❌ falla | 14 de 15 |
 
-Version: TestU01 1.2.3. Harness: `codigos-potenciados/testu01/run_randu_plus` (local, **no versionado** en este commit).
+Version: TestU01 1.2.3. Harness: `codigos-potenciados/testu01/run_randu_plus` (fuentes versionadas; el binario se construye con el `Makefile` de ese directorio).
 
 ## Qué prueba este informe y qué NO
 
@@ -87,10 +87,13 @@ las 8 semillas medidas. Es decir: `fmix32` borra la estructura
 *observable* en caja negra, pero no la elimina (fmix32 es invertible) y el
 periodo sigue siendo 2^30. Para uso real, `msws64/` o `hybrid_prng/`.
 
-El harness de TestU01 (`codigos-potenciados/testu01/`) **no está versionado**
-en este commit: los números de esa sección se midieron con el binario local
-`run_randu_plus`. Si el harness no está, el validador omite la sección en vez
-de reportar un resultado inventado.
+El harness de TestU01 está **versionado** en `codigos-potenciados/testu01/`
+(fuentes y `Makefile`); los binarios `run_randu_plus` y `lattice_recovery` no se
+versionan y se construyen con
+`make -C codigos-potenciados/testu01 TESTU01_HOME=/ruta/a/testu01`. Los números
+de esa sección se midieron con el binario local `run_randu_plus`. Si el harness
+no está, el validador omite la sección en vez de reportar un resultado
+inventado.
 
 ### Muestra realmente consumida
 
