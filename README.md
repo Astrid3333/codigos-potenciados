@@ -30,7 +30,48 @@ Repositorio de trabajo del agente `evolve-agent`. Contiene código C bajo `codig
 > es una biyección, así que la salida determina el estado y el retículo de RANDU
 > sigue siendo recuperable; el período real es 2³⁰. Se conserva como ejemplo
 > histórico con la advertencia explícita, y el propio test lo verifica (8/8).
-> Para generar números_use `codigos-potenciados/msws64/`.
+> Para generar números usa `codigos-potenciados/msws64/`.
+
+## `randu_plus` (ejemplo histórico, no usar para números pseudoaleatorios)
+
+API (header único, sin dependencias, compatible con AVR/Arduino):
+
+```c
+#include "randu_plus.h"
+
+uint32_t state = 12345u;          /* semilla: se fuerza impar (periodo 2^30) */
+uint32_t r = randu_plus(&state);  /* siguiente valor de 32 bits */
+```
+
+| Función / macro | Para qué sirve |
+|-----------------|----------------|
+| `randu_plus(uint32_t *state)` | Genera el siguiente `uint32_t`. El estado se fuerza impar con `*state \|= 1u`. |
+| `randu_plus_unfmix32(uint32_t y)` | Inversa de `fmix32`: recupera el estado interno desde la salida. |
+| `randu_plus_inverse_multiplier(void)` | Inversa multiplicativa de 65539 mod 2³², para retroceder en el LCG. |
+| `RANDU_PLUS_PERIOD` | Período real medido del LCG con semilla impar: `1073741824u` (2³⁰). |
+
+El header está duplicado en dos rutas (raíz y `codigos-potenciados/`); ambas
+copias deben quedar **byte a byte idénticas** y el validador lo comprueba.
+
+### Validación estadística
+
+`randu_plus_validator.py` compila un driver contra el header real del repo y
+mide el flujo de bits con una batería de tests estándar (espectro 3D,
+espaciado de cumpleaños, permutaciones, frecuencia monobit, frecuencia por
+bloques y rachas):
+
+```bash
+python3 randu_plus_validator.py        # regenera VALIDATION_REPORT.md
+```
+
+El barrido usa **8 semillas impares distintas** y el criterio de paso es el
+**peor caso entre semillas** (el mínimo de los p-values), no el de una
+ejecución afortunada. El informe (`VALIDATION_REPORT.md`) documenta el consumo
+real de muestras de cada test y sus límites: los tests de primer orden **no**
+detectan el retículo de RANDU. Para eso está la batería de TestU01
+(SmallCrush), que sí lo detecta cuando recibe el estado crudo, y el test
+incluido en `randu_plus.c`, que verifica biyectividad, período real y
+recuperación del retículo.
 
 ## Compilar y probar
 

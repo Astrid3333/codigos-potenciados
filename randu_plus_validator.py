@@ -11,6 +11,7 @@ import subprocess
 import os
 import tempfile
 import hashlib
+import re
 from collections import Counter
 from typing import List, Tuple, Dict
 
@@ -63,6 +64,22 @@ HEADER_COPIES = [
     ('codigos-potenciados',
      os.path.join(REPO_ROOT, 'codigos-potenciados', 'randu_plus.h')),
 ]
+
+STAT_SEEDS = (12345, 1, 3, 7, 4242, 65537, 99991, 2147483647)
+
+STAT_N_VALUES = 1_000_000
+
+STAT_TESTS = (
+    ('Spectral3D', 'ratio'),
+    ('BirthdaySpacings', 'p_value'),
+    ('Permutation', 'p_value'),
+    ('NIST_Frequency', 'p_value'),
+    ('NIST_BlockFreq', 'p_value'),
+    ('NIST_Runs', 'p_value'),
+)
+
+TESTU01_BIN = os.path.join(REPO_ROOT, 'codigos-potenciados', 'testu01',
+                           'run_randu_plus')
 
 def generate_binary(output_path: str, n_bytes: int, seed: int = 12345, quiet: bool = False,
                     header_dir: str = None) -> None:
@@ -267,10 +284,12 @@ def spectral_test_3d(data: List[int], n_tuples: int = 100000) -> Dict:
         "determinant": det,
         "expected_white_noise": 1/1728,
         "ratio": det / (1/1728) if det > 0 else 0,
+        "n_tuples": n,
+        "n_values": n * 3,
         "interpretation": "Cerca de 1 = ruido blanco; <<1 = estructura planar"
     }
 
-def birthday_spacings(data: List[int], m: int = 2**24, n_samples: int = 5000) -> Dict:
+def birthday_spacings(data: List[int], m: int = 2**24, n_samples: int = 20000) -> Dict:
     """Test Birthday Spacings (TestU01)."""
     vals = [(x % m) for x in data[:n_samples]]
     vals.sort()
@@ -302,6 +321,7 @@ def birthday_spacings(data: List[int], m: int = 2**24, n_samples: int = 5000) ->
         "collisions": collisions,
         "expected": expected,
         "p_value": p_val,
+        "n_values": len(vals),
         "pass": p_val > 0.01
     }
 
@@ -326,6 +346,7 @@ def permutation_test(data: List[int], n: int = 10000) -> Dict:
         "expected_perms": 120,
         "chi2": chi2,
         "p_value": p_val,
+        "n_values": len(permutations) * 5,
         "pass": p_val > 0.01
     }
 
@@ -343,6 +364,7 @@ def nist_frequency(data: List[int]) -> Dict:
     
     return {
         "n_bits": n,
+        "n_values": min(len(data), 1000000),
         "s_obs": s_obs,
         "p_value": p_val,
         "pass": p_val > 0.01
@@ -365,6 +387,8 @@ def nist_block_frequency(data: List[int], block_size: int = 10000) -> Dict:
     p_val = chi2_sf(chi2, n_blocks)
     return {
         "n_blocks": n_blocks,
+        "n_bits": len(bits),
+        "n_values": min(len(data), 100000),
         "chi2": chi2,
         "p_value": p_val,
         "pass": p_val > 0.01
@@ -387,7 +411,9 @@ def nist_runs(data: List[int]) -> Dict:
     z = (runs - expected) / math.sqrt(max(var, 1))
     p_val = math.erfc(abs(z) / math.sqrt(2))
     
-    return {"runs": runs, "expected": expected, "p_value": p_val, "pass": p_val > 0.01}
+    return {"runs": runs, "expected": expected, "p_value": p_val,
+            "n_bits": n, "n_values": min(len(data), 100000),
+            "pass": p_val > 0.01}
 
 def dieharder_style_tests(data: List[int]) -> List[Dict]:
     """Subconjunto estilo dieharder: birthday, perm, rank, etc."""
@@ -406,29 +432,55 @@ REPORT_CAVEAT = """
 
 Este informe mide **propiedades estadísticas del flujo de bits** de la salida
 del generador (distribución, espectro, espaciado de cumpleaños, permutaciones,
-frecuencia, frecuencia por bloques y rachas). Los tests son **tests de
-aleatoriedad estándar**: el mismo criterio con el que se evalúa un generador
-pseudoaleatorio maduro.
+frecuencia monobit, frecuencia por bloques y rachas), repetido sobre
+**{n_seeds} semillas** y con criterio de paso en el **peor caso**: el mínimo
+de los valores entre semillas, no el de una ejecución afortunada.
 
 **No es una validación del generador `randu_plus`.** En concreto:
 
-- Estos tests **no pueden detectar** el retículo lineal de RANDU ni un periodo
-  corto, porque son tests de primer orden sobre una muestra de {n_values}
-  valores. El periodo real del generador es **2^30** y el retículo es
-  recuperable por la recurrencia `x[n+2] = 6·x[n+1] - 9·x[n]`; eso está
-  documentado en `randu_plus.h`, que recomienda explícitamente `msws64/` o
-  `hybrid_prng/` para uso real.
+- Estos tests son **de primer orden**: no pueden detectar el retículo lineal
+  de RANDU ni un periodo corto. El periodo real del generador es **2^30** y el
+  retículo es recuperable por la recurrencia `x[n+2] = 6·x[n+1] - 9·x[n]`;
+  eso está documentado en `randu_plus.h`, que recomienda explícitamente
+  `msws64/` o `hybrid_prng/` para uso real.
 - `fmix32` (el post-proceso de MurmurHash) es una **biyección**: reordena los
   estados de RANDU pero no añade entropía ni rompe el retículo.
 - El recuento dice "el flujo **parece** aleatorio a estas escalas", no "el
   generador es criptográficamente seguro" ni "cumple ISO/IEC 23837".
 
-Para las propiedades estructurales del generador (biyectividad, periodo,
-recuperación del retículo) está el **test incluido en `randu_plus.c`**, que
-incluye `randu_plus.h` y hace 8 comprobaciones con exit code: es distinto y
-complementario a este informe.
+### Lo que aporta la batería de TestU01
 
-## Qué mide el cross-check contra el header
+SmallCrush (15 estadísticas) **sí detecta** el retículo cuando recibe el
+**estado crudo** del LCG: en modo `state` fallan 14 de las 15 estadísticas con
+p-value ~0. En modo `fmix` (la salida de `randu_plus()`) **pasan las 15** en
+las {n_seeds} semillas medidas. Es decir: `fmix32` borra la estructura
+*observable* en caja negra, pero no la elimina (fmix32 es invertible) y el
+periodo sigue siendo 2^30. Para uso real, `msws64/` o `hybrid_prng/`.
+
+El harness de TestU01 (`codigos-potenciados/testu01/`) **no está versionado**
+en este commit: los números de esa sección se midieron con el binario local
+`run_randu_plus`. Si el harness no está, el validador omite la sección en vez
+de reportar un resultado inventado.
+
+### Muestra realmente consumida
+
+El informe se genera con {n_values} uint32 por semilla ({n_mb} MB), que es lo
+que consume el test de frecuencia monobit (32 M bits). Cada test consume un
+subconjunto distinto y la tabla "Muestra realmente consumida por test" lo
+detalla. Antes este informe anunciaba 100 MB generados de los que los tests
+usaban como mucho 4 MB: el dato anunciado era mayor que el medido.
+
+### Poder de los tests
+
+Un p-value alto no dice mucho si el test casi no puede fallar. El caso
+extremo era `BirthdaySpacings`: con 5000 muestras en un espacio de 2^24 el
+número esperado de colisiones era 0.745, así que casi siempre salían 0
+colisiones y el p-value era 1.0000 (o 0.0398 por azar) sin que el test
+discriminara nada. Con 20000 muestras el número esperado de colisiones es
+11.92 y el p-value varía entre 0.15 y 0.95 según la semilla, que es lo que
+hace falta para que el peor caso entre semillas signifique algo.
+
+### Qué mide el cross-check contra el header
 
 `generate_binary()` compila un `.c` temporal que **incluye `randu_plus.h`**
 (con `-I` apuntando al directorio del repo), de modo que el flujo binario
@@ -452,125 +504,225 @@ impide que el informe vuelva a medir un generador que no sea el del repo.
 
 ## Nota de reproducibilidad
 
-El informe se generó con la semilla {seed} sobre {n_mb} MB ({n_values}
-`uint32`). Para reproducir: `python3 randu_plus_validator.py`.
+Para regenerar este informe: `python3 randu_plus_validator.py` (compila el
+driver contra `randu_plus.h`, genera el flujo de cada semilla, corre la
+batería y reescribe este archivo). Las semillas del barrido son
+{stat_seeds}, y la muestra por semilla es {n_values} uint32 ({n_mb} MB).
 """
 
-def main():
-    seed = 12345
-    n_bytes = 100 * 1024 * 1024  # 100 MB
-    bin_path = "randu_output.bin"
-    
-    print(f"=== Generando {n_bytes/1e6:.0f} MB de datos randu_plus (seed={seed}) ===")
-    generate_binary(bin_path, n_bytes, seed)
-    
-    print("=== Cargando datos ===")
-    data = load_uint32(bin_path)
-    print(f"Cargados {len(data)} uint32")
-    
-    print("\n=== TESTS ===")
-    all_results = []
-    
-    # 1. Spectral 3D
-    print("\n1. Spectral Test 3D (Marsaglia)...")
-    spec = spectral_test_3d(data, 50000)
-    all_results.append(("Spectral3D", spec))
-    print(f"   det={spec.get('determinant',0):.2e}, ratio={spec.get('ratio',0):.3f}")
-    
-    # 2. Birthday Spacings
-    print("\n2. Birthday Spacings...")
-    bd = birthday_spacings(data)
-    all_results.append(("BirthdaySpacings", bd))
-    print(f"   collisions={bd['collisions']}, expected={bd['expected']:.2f}, p={bd['p_value']:.4f}")
-    
-    # 3. Permutation
-    print("\n3. Permutation Test...")
-    perm = permutation_test(data)
-    all_results.append(("Permutation", perm))
-    print(f"   chi2={perm['chi2']:.2f}, p={perm['p_value']:.4f}")
-    
-    # 4. NIST Frequency
-    print("\n4. NIST Frequency (Monobit)...")
-    freq = nist_frequency(data)
-    all_results.append(("NIST_Frequency", freq))
-    print(f"   p={freq['p_value']:.6f}")
-    
-    # 5. NIST Block Frequency
-    print("\n5. NIST Block Frequency...")
-    bfreq = nist_block_frequency(data)
-    all_results.append(("NIST_BlockFreq", bfreq))
-    print(f"   p={bfreq['p_value']:.6f}")
-    
-    # 6. NIST Runs
-    print("\n6. NIST Runs...")
-    runs = nist_runs(data)
-    all_results.append(("NIST_Runs", runs))
-    print(f"   p={runs['p_value']:.6f}")
+def run_stat_tests(data: List[int]) -> Dict:
+    """Ejecuta la bateria estadistica de primer orden sobre un flujo."""
+    return {
+        "Spectral3D": spectral_test_3d(data, 50000),
+        "BirthdaySpacings": birthday_spacings(data),
+        "Permutation": permutation_test(data),
+        "NIST_Frequency": nist_frequency(data),
+        "NIST_BlockFreq": nist_block_frequency(data),
+        "NIST_Runs": nist_runs(data),
+    }
 
-    # 7. Cross-check contra randu_plus.h (prueba de que lo medido ES el repo)
-    print("\n7. Header Cross-Check (binario vs randu_plus.h)...")
+
+def seed_sweep(seeds=STAT_SEEDS, n_values: int = STAT_N_VALUES) -> Dict:
+    """Ejecuta la bateria estadistica sobre varias semillas y conserva el
+    peor caso de cada test.
+
+    Una sola semilla no distingue "el generador es aleatorio" de "esta
+    semilla dio un p-value alto". El criterio de paso es el minimo de los
+    valores entre semillas: si alguna semilla da un p-value bajo, el
+    generador no pasa el test, por bueno que fuera el resto.
+
+    Las semillas son impares y distintas entre si porque el header fuerza
+    `*state |= 1u`: una semilla par y su version impar producen el mismo
+    flujo, asi que mezclarlas no aportaria cobertura."""
+    per_seed = {}
+    with tempfile.TemporaryDirectory() as tmpdir:
+        for seed in seeds:
+            path = os.path.join(tmpdir, f"seed_{seed}.bin")
+            generate_binary(path, n_values * 4, seed, quiet=True)
+            data = load_uint32(path)
+            per_seed[seed] = run_stat_tests(data)
+            del data
+
+    summary = {}
+    for name, metric in STAT_TESTS:
+        values = {s: per_seed[s][name][metric] for s in seeds}
+        worst = min(values.values())
+        worst_seed = min(values, key=values.get)
+        threshold = 0.5 if metric == 'ratio' else 0.01
+        summary[name] = {
+            "metric": metric,
+            "per_seed": values,
+            "worst": worst,
+            "worst_seed": worst_seed,
+            "threshold": threshold,
+            "pass": worst > threshold,
+        }
+    return {"seeds": list(seeds), "n_values": n_values,
+            "per_seed": per_seed, "summary": summary}
+
+
+def testu01_smallcrush(seed: int, mode: str = "fmix",
+                       timeout: int = 900) -> Dict:
+    """Ejecuta la bateria SmallCrush de TestU01 sobre randu_plus.
+
+    Requiere el harness local `codigos-potocados/testu01/run_randu_plus`, que
+    no esta versionado en el repo. Si no existe se devuelve None y el informe
+    lo dice, en vez de callar el resultado."""
+    if not os.path.exists(TESTU01_BIN):
+        return None
+    proc = subprocess.run([TESTU01_BIN, "smallcrush", mode, str(seed)],
+                          capture_output=True, text=True, timeout=timeout)
+    out = proc.stdout
+    failed = []
+    m = re.search(r"outside \[0\.001, 0\.9990\]:(.*)", out, re.S)
+    if m:
+        failed = re.findall(r"^\s*\d+\s+(\S+)", m.group(1), re.M)
+    vm = re.search(r"Version:\s*(TestU01\s+[\d.]+)", out)
+    sm = re.search(r"Number of statistics:\s*(\d+)", out)
+    return {
+        "mode": mode,
+        "seed": seed,
+        "pass": "All tests were passed" in out,
+        "n_failed": len(failed),
+        "failed": failed,
+        "version": vm.group(1) if vm else "TestU01",
+        "n_statistics": int(sm.group(1)) if sm else 0,
+    }
+
+
+def main():
+    seeds = STAT_SEEDS
+    n_values = STAT_N_VALUES
+
+    print(f"=== Barrido estadistico: {len(seeds)} semillas x {n_values} uint32 ===")
+    sweep = seed_sweep(seeds, n_values)
+    for seed in seeds:
+        parts = []
+        for name, metric in STAT_TESTS:
+            val = sweep['per_seed'][seed][name][metric]
+            parts.append(f"{name}={val:.4f}")
+        print(f"   seed={seed:>10}: " + "  ".join(parts))
+
+    print("\n=== Peor caso por test (minimo entre semillas) ===")
+    for name, _metric in STAT_TESTS:
+        s = sweep['summary'][name]
+        print(f"   {name:20s} peor={s['worst']:.6f} (semilla {s['worst_seed']}) "
+              f"{'PASS' if s['pass'] else 'FAIL'}")
+
+    print("\n=== Cross-check contra randu_plus.h ===")
     xcheck = header_crosscheck()
-    all_results.append(("HeaderCrossCheck", xcheck))
     print(f"   {xcheck['detail']}")
 
-    # 8. Sincronizacion de las copias del header del repo
-    print("\n8. Header Sync (las copias de randu_plus.h son identicas)...")
+    print("\n=== Sincronizacion de las copias del header ===")
     hsync = header_sync_check()
-    all_results.append(("HeaderSync", hsync))
     print(f"   {hsync['detail']}")
 
-    # Resumen
-    print("\n" + "="*60)
+    testu01 = []
+    if os.path.exists(TESTU01_BIN):
+        print("\n=== TestU01 SmallCrush (harness local) ===")
+        for seed in seeds:
+            r = testu01_smallcrush(seed, "fmix")
+            if r is None:
+                continue
+            testu01.append(r)
+            print(f"   fmix  seed={seed:>10}: {'PASS' if r['pass'] else 'FAIL'} "
+                  f"({r['n_failed']} de {r['n_statistics']} estadisticas fuera de rango)")
+        state = testu01_smallcrush(seeds[0], "state")
+        if state is not None:
+            testu01.append(state)
+            print(f"   state seed={seeds[0]:>10}: {'PASS' if state['pass'] else 'FAIL'} "
+                  f"({state['n_failed']} de {state['n_statistics']} estadisticas fuera de rango)")
+    else:
+        print("\n=== TestU01 SmallCrush: harness no encontrado, se omite ===")
+
+    print("\n" + "=" * 60)
     print("RESUMEN DE VALIDACIÓN randu_plus")
-    print("="*60)
+    print("=" * 60)
     passed = 0
     total = 0
-    for name, res in all_results:
-        if isinstance(res, dict) and 'pass' in res:
-            total += 1
-            ok = res['pass']
-            passed += 1 if ok else 0
-            status = "✅ PASS" if ok else "❌ FAIL"
-            print(f"  {name:20s} : {status} (p={res.get('p_value', 'N/A')})")
-        elif isinstance(res, dict) and 'ratio' in res:
-            total += 1
-            ok = res['ratio'] > 0.5
-            passed += 1 if ok else 0
-            status = "✅ PASS" if ok else "❌ FAIL"
-            print(f"  {name:20s} : {status} (ratio={res['ratio']:.3f})")
-
+    for name, _metric in STAT_TESTS:
+        s = sweep['summary'][name]
+        total += 1
+        passed += 1 if s['pass'] else 0
+        print(f"  {name:20s} : {'✅ PASS' if s['pass'] else '❌ FAIL'} "
+              f"(peor caso={s['worst']:.6f}, semilla {s['worst_seed']})")
+    for name, res in (("HeaderCrossCheck", xcheck), ("HeaderSync", hsync)):
+        total += 1
+        passed += 1 if res['pass'] else 0
+        print(f"  {name:20s} : {'✅ PASS' if res['pass'] else '❌ FAIL'}")
     print(f"\nTotal: {passed}/{total} tests pasados")
 
-    # Generar reporte markdown
     with open('VALIDATION_REPORT.md', 'w') as f:
-        f.write(f"# Informe de Validación randu_plus\n\n")
-        f.write(f"**Semilla:** {seed}\n")
-        f.write(f"**Datos:** {n_bytes/1e6:.0f} MB ({len(data)} uint32)\n")
-        f.write(f"**Fecha:** {subprocess.run(['date'], capture_output=True, text=True).stdout.strip()}\n")
-        f.write(f"**Git commit:** {subprocess.run(['git', 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()}\n\n")
-        f.write("## Resultados\n\n")
-        f.write("| Test | p-value / ratio | Pass |\n")
-        f.write("|------|-----------------|------|\n")
-        for name, res in all_results:
-            if 'p_value' in res:
-                f.write(f"| {name} | {res['p_value']:.6f} | {'✅' if res['pass'] else '❌'} |\n")
-            elif 'ratio' in res:
-                f.write(f"| {name} | ratio={res['ratio']:.3f} | {'✅' if res['ratio']>0.5 else '❌'} |\n")
-            elif name == "HeaderCrossCheck":
-                f.write(f"| {name} | {res['n_values']} valores x {len(res['checked_seeds'])} semillas "
-                        f"x {len(res['headers_checked'])} headers | "
-                        f"{'✅' if res['pass'] else '❌'} |\n")
-            elif name == "HeaderSync":
-                f.write(f"| {name} | {res['n_copies']} copias de randu_plus.h | "
-                        f"{'✅' if res['pass'] else '❌'} |\n")
-        f.write(f"\n**Total: {passed}/{total} pasados**\n")
+        date_str = subprocess.run(['date'], capture_output=True,
+                                   text=True).stdout.strip()
+        commit_str = subprocess.run(['git', 'rev-parse', 'HEAD'],
+                                    capture_output=True, text=True).stdout.strip()
+        f.write("# Informe de Validación randu_plus\n\n")
+        f.write(f"**Semillas:** {', '.join(str(s) for s in seeds)} "
+                f"({len(seeds)} semillas impares distintas)\n")
+        f.write(f"**Muestra por semilla:** {n_values} uint32 "
+                f"({n_values * 4 / 1e6:.1f} MB)\n")
+        f.write(f"**Fecha:** {date_str}\n")
+        f.write(f"**Git commit:** {commit_str}\n\n")
+
+        f.write("## Resultados (peor caso entre semillas)\n\n")
+        f.write("| Test | metrica | peor caso | semilla | pass |\n")
+        f.write("|------|---------|-----------|---------|------|\n")
+        for name, metric in STAT_TESTS:
+            s = sweep['summary'][name]
+            mark = '✅' if s['pass'] else '❌'
+            f.write(f"| {name} | {metric} | {s['worst']:.6f} | "
+                    f"{s['worst_seed']} | {mark} |\n")
+        f.write(f"| HeaderCrossCheck | bit a bit | {xcheck['n_values']} valores x "
+                f"{len(xcheck['checked_seeds'])} semillas x "
+                f"{len(xcheck['headers_checked'])} headers | - | "
+                f"{'✅' if xcheck['pass'] else '❌'} |\n")
+        f.write(f"| HeaderSync | sha256 | {hsync['n_copies']} copias de "
+                f"randu_plus.h | - | {'✅' if hsync['pass'] else '❌'} |\n")
+        f.write(f"\n**Total: {passed}/{total} pasados**\n\n")
+
+        f.write("## Valor de cada test en cada semilla\n\n")
+        f.write("| Test | " + " | ".join(str(s) for s in seeds) + " |\n")
+        f.write("|" + "---|" * (len(seeds) + 1) + "\n")
+        for name, metric in STAT_TESTS:
+            vals = sweep['summary'][name]['per_seed']
+            row = " | ".join(f"{vals[s]:.4f}" for s in seeds)
+            f.write(f"| {name} | {row} |\n")
+        f.write("\n")
+
+        f.write("## Muestra realmente consumida por test\n\n")
+        f.write("| Test | uint32 consumidos | bits |\n")
+        f.write("|------|-------------------|------|\n")
+        for name, metric in STAT_TESTS:
+            res = sweep['per_seed'][seeds[0]][name]
+            f.write(f"| {name} | {res.get('n_values', '-')} | "
+                    f"{res.get('n_bits', '-')} |\n")
+        f.write("\n")
+
+        if testu01:
+            f.write("## TestU01 SmallCrush\n\n")
+            f.write("| modo | semilla | resultado | estadisticas fuera de rango |\n")
+            f.write("|------|---------|-----------|------------------------------|\n")
+            for r in testu01:
+                mark = '✅ pasan todas' if r['pass'] else '❌ falla'
+                f.write(f"| {r['mode']} | {r['seed']} | {mark} | "
+                        f"{r['n_failed']} de {r['n_statistics']} |\n")
+            f.write(f"\nVersion: {testu01[0]['version']}. Harness: "
+                    "`codigos-potenciados/testu01/run_randu_plus` (local, **no "
+                    "versionado** en este commit).\n")
+        else:
+            f.write("## TestU01 SmallCrush\n\nNo ejecutado: el harness "
+                    "`codigos-potenciados/testu01/run_randu_plus` no esta "
+                    "presente.\n")
+
         f.write(REPORT_CAVEAT.format(
-            seed=seed,
-            n_mb=f"{n_bytes/1e6:.0f}",
-            n_values=len(data),
+            n_seeds=len(seeds),
+            n_values=n_values,
+            n_mb=f"{n_values * 4 / 1e6:.1f}",
             n_xcheck=xcheck['n_values'],
-            seeds=", ".join(str(s) for s in xcheck['checked_seeds'])))
-    
+            seeds=", ".join(str(s) for s in xcheck['checked_seeds']),
+            stat_seeds=", ".join(str(s) for s in seeds)))
+
     print("\nReporte guardado en VALIDATION_REPORT.md")
 
 if __name__ == '__main__':

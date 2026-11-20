@@ -1,6 +1,37 @@
 # Current State
 
-- Goal: **ciclo 10** — aplicar la revisión externa (`pasted.txt`) a 4 puntos del repo:
+- Goal: **ciclo 16** — cerrar la revisión externa del repo con 4 puntos:
+  (1) batería estadística **multi-semilla** con criterio de peor caso,
+  (2) integrar la evidencia de **TestU01 SmallCrush**, (3) corregir el dato de
+  consumo de muestra del informe, (4) docs (`README` + descripción de GitHub).
+- Stage: **ciclo 16 cerrado y verificado** (nota completa en `notes/2026-11-20.md`).
+  - `randu_plus_validator.py`: barrido de **8 semillas impares** (12345, 1, 3, 7,
+    4242, 65537, 99991, 2147483647) × 6 tests con 1M uint32 (4 MB) por semilla;
+    el criterio de paso es el **mínimo entre semillas** (peor caso), no el de una
+    ejecución afortunada. Cada test reporta su consumo real (`n_values`,
+    `n_bits`). Peor caso: Spectral3D 0.982369, BirthdaySpacings 0.149875,
+    Permutation 0.024850, NIST_Frequency 0.034827, NIST_BlockFreq 0.145194,
+    NIST_Runs 0.255144. Suite **8/8** (incluye `HeaderCrossCheck` y `HeaderSync`).
+  - **TestU01 SmallCrush** integrado vía el harness local del usuario
+    (`codigos-potenciados/testu01/run_randu_plus`, TestU01 1.2.3 enlazado
+    estáticamente, **no versionado**): modo `fmix` pasa **15/15** en las 8
+    semillas; modo `state` (estado crudo del LCG) **falla 14/15** con p ~0.
+    `fmix32` borra la estructura observable pero no la elimina (biyectivo) y el
+    período sigue 2³⁰. Si el harness no está, el validador omite la sección.
+  - **Poder discriminante corregido**: `BirthdaySpacings` usaba 5000 muestras en
+    2²⁴ (0.745 colisiones esperadas → p ≈ 1.0000, test inútil); con 20000
+    muestras (11.92 esperadas) el p varía 0.15–0.95. El 0.0398 que señalaba la
+    revisión era un artefacto de esa configuración.
+  - `VALIDATION_REPORT.md` regenerado: peor caso por test, matriz valor×semilla,
+    consumo real de muestra por test, sección TestU01 y caveat reescrito
+    (multi-semilla, consumo real vs. los 100 MB antes anunciados, qué detecta
+    TestU01, harness no versionado, reproducibilidad).
+  - `README.md`: sección `randu_plus` (API + cómo reproducir) y typo
+    `números_use` corregido. Descripción del repo en GitHub corregida (ya no
+    dice "corregidos matemáticamente").
+  - Push **no** hecho (falta pedido explícito). Versionar
+    `codigos-potenciados/testu01/` es decisión del usuario.
+- Goal anterior: **ciclo 10** — aplicar la revisión externa (`pasted.txt`) a 4 puntos del repo:
   (1) `sine_fixed.c` roto, (2) `randu_plus` no arregla RANDU, (3) `revivir.c` documentado
   con `frexp/ldexp` y atribución de Aryabhata, (4) el doc de Goertzel con umbrales medidos.
 - Stage: **ciclo 10 cerrado y verificado** (nota completa en `notes/2026-11-19.md`).
