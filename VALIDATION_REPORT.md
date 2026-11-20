@@ -2,8 +2,8 @@
 
 **Semilla:** 12345
 **Datos:** 105 MB (26214400 uint32)
-**Fecha:** Thu Nov 19 10:39:55 PM -03 2026
-**Git commit:** a565488b2ada6e612df8b963061c10cb977989aa
+**Fecha:** Thu Nov 19 10:58:11 PM -03 2026
+**Git commit:** 1682d55b431fe0b08082b445d4ce01a72d2d6bb8
 
 ## Resultados
 
@@ -15,9 +15,10 @@
 | NIST_Frequency | 0.873591 | ✅ |
 | NIST_BlockFreq | 0.992484 | ✅ |
 | NIST_Runs | 0.637862 | ✅ |
-| HeaderCrossCheck | 1000 valores x 5 semillas | ✅ |
+| HeaderCrossCheck | 1000 valores x 5 semillas x 2 headers | ✅ |
+| HeaderSync | 2 copias de randu_plus.h | ✅ |
 
-**Total: 7/7 pasados**
+**Total: 8/8 pasados**
 
 ## Qué prueba este informe y qué NO
 
@@ -54,6 +55,14 @@ comprueba **bit a bit** los primeros 1000 valores contra una referencia
 escrita a mano en Python, para las semillas 12345, 0, 2, 100, 4294967295, y comprueba además que
 una semilla par produce la misma secuencia que su versión impar (el
 `*state |= 1u` del header).
+
+`randu_plus.h` está **duplicado y versionado** en dos sitios del repo: la raíz
+y `codigos-potenciados/`. Cada consumidor compila con un `-I` distinto (el
+validador usa la raíz; `codigos-potenciados/testu01/Makefile` usa `-I..`), así
+que el cross-check se ejecuta contra **cada** copia y el test `HeaderSync`
+comprueba que todas son **byte a byte idénticas**. Si alguien edita una sola
+copia, las pruebas fallan en lugar de dejar que dos ejecutables midan
+generadores distintos.
 
 Si el header cambia, hay que actualizar la referencia en el mismo commit: si
 no, este test falla y lo dice. Ese fallo es intencional: es la alarma que

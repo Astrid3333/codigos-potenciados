@@ -10,6 +10,7 @@ import sys
 import subprocess
 import os
 import tempfile
+import hashlib
 from collections import Counter
 from typing import List, Tuple, Dict
 
@@ -49,9 +50,29 @@ int main(int argc, char** argv) {
 }
 '''
 
-def generate_binary(output_path: str, n_bytes: int, seed: int = 12345, quiet: bool = False) -> None:
-    """Genera n_bytes de salida randu_plus usando el binario compilado."""
-    header_dir = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
+
+# `randu_plus.h` esta duplicado y las DOS copias estan versionadas: una en la
+# raiz del repo y otra en `codigos-potenciados/`. Cada consumidor compila con
+# un `-I` distinto (el validador usa la raiz; `codigos-potenciados/testu01/
+# Makefile` usa `-I..`), asi que si una copia se edita y la otra no, cada
+# binario mide un generador distinto y nada lo delata. Este repositorio lo
+# comprueba con `header_sync_check()` y `header_crosscheck()`.
+HEADER_COPIES = [
+    ('raiz', os.path.join(REPO_ROOT, 'randu_plus.h')),
+    ('codigos-potenciados',
+     os.path.join(REPO_ROOT, 'codigos-potenciados', 'randu_plus.h')),
+]
+
+def generate_binary(output_path: str, n_bytes: int, seed: int = 12345, quiet: bool = False,
+                    header_dir: str = None) -> None:
+    """Genera n_bytes de salida randu_plus usando el binario compilado.
+
+    `header_dir` decide que copia de `randu_plus.h` se incluye. Por defecto es
+    la de la raiz del repo; los tests de sincronizacion compilan contra cada
+    copia existente, porque cada consumidor del repo usa un `-I` distinto."""
+    if header_dir is None:
+        header_dir = REPO_ROOT
     with tempfile.TemporaryDirectory() as tmpdir:
         src_path = os.path.join(tmpdir, 'randu_plus_bin.c')
         exe_path = os.path.join(tmpdir, 'randu_plus_bin')
@@ -103,45 +124,99 @@ def header_crosscheck(seeds=(12345, 0, 2, 100, 4294967295),
 
     Esta comprobacion es la que habria detectado el fallo original: la copia
     embebida omitia `*state |= 1u`, asi que con semilla par divergia desde
-    la salida 0 mientras que con semilla impar coincidia."""
-    c_vs_ref = {}
-    even_folded = {}
+    la salida 0 mientras que con semilla impar coincidia.
+
+    Se ejecuta contra **cada** copia del header que hay en el repo (raiz y
+    `codigos-potenciados/`), no solo contra una: cada consumidor compila con
+    un `-I` distinto, y el cross-check debe valer para todos ellos."""
+    per_header = {}
     tmpdir = tempfile.mkdtemp(prefix='randu_xcheck_')
     try:
-        for seed in seeds:
-            path = os.path.join(tmpdir, f'seed_{seed}.bin')
-            generate_binary(path, n_values * 4, seed, quiet=True)
-            data = load_uint32(path)
+        for label, header_path in HEADER_COPIES:
+            header_dir = os.path.dirname(header_path)
+            if not os.path.exists(header_path):
+                continue
 
-            st = seed
-            ref = []
-            for _ in range(n_values):
-                r, st = randu_plus_ref(st)
-                ref.append(r)
-            c_vs_ref[seed] = (data[:n_values] == ref)
+            c_vs_ref = {}
+            even_folded = {}
+            for seed in seeds:
+                path = os.path.join(tmpdir, f'{label}_seed_{seed}.bin')
+                generate_binary(path, n_values * 4, seed, quiet=True,
+                                header_dir=header_dir)
+                data = load_uint32(path)
 
-            if seed & 1 == 0:
-                odd_path = os.path.join(tmpdir, f'seed_{seed | 1}.bin')
-                generate_binary(odd_path, n_values * 4, seed | 1, quiet=True)
-                odd_data = load_uint32(odd_path)
-                even_folded[seed] = (data[:n_values] == odd_data[:n_values])
+                st = seed
+                ref = []
+                for _ in range(n_values):
+                    r, st = randu_plus_ref(st)
+                    ref.append(r)
+                c_vs_ref[seed] = (data[:n_values] == ref)
+
+                if seed & 1 == 0:
+                    odd_path = os.path.join(tmpdir, f'{label}_seed_{seed | 1}.bin')
+                    generate_binary(odd_path, n_values * 4, seed | 1, quiet=True,
+                                    header_dir=header_dir)
+                    odd_data = load_uint32(odd_path)
+                    even_folded[seed] = (data[:n_values] == odd_data[:n_values])
+
+            per_header[label] = {
+                "header": os.path.relpath(header_path, REPO_ROOT),
+                "c_vs_reference": c_vs_ref,
+                "even_seed_folded_to_odd": even_folded,
+                "pass": all(c_vs_ref.values()) and all(even_folded.values()),
+            }
     finally:
         for name in os.listdir(tmpdir):
             os.unlink(os.path.join(tmpdir, name))
         os.rmdir(tmpdir)
 
+    all_pass = bool(per_header) and all(h["pass"] for h in per_header.values())
     return {
-        "pass": all(c_vs_ref.values()) and all(even_folded.values()),
+        "pass": all_pass,
         "n_values": n_values,
         "checked_seeds": list(seeds),
-        "c_vs_reference": c_vs_ref,
-        "even_seed_folded_to_odd": even_folded,
-        "detail": ("el binario coincide bit a bit con la referencia en todas "
-                   "las semillas, y las semillas pares se pliegan a su "
-                   "version impar como hace `*state |= 1u` del header")
-        if all(c_vs_ref.values()) and all(even_folded.values())
+        "headers_checked": list(per_header.keys()),
+        "per_header": per_header,
+        "c_vs_reference": {label: h["c_vs_reference"] for label, h in per_header.items()},
+        "even_seed_folded_to_odd": {label: h["even_seed_folded_to_odd"]
+                                    for label, h in per_header.items()},
+        "detail": (f"el binario coincide bit a bit con la referencia en las "
+                   f"{len(seeds)} semillas para las {len(per_header)} copias del "
+                   f"header ({', '.join(per_header.keys())}), y las semillas pares "
+                   f"se pliegan a su version impar como hace `*state |= 1u`")
+        if all_pass
         else ("divergencia entre el binario y la referencia: el validador NO "
               "esta midiendo el generador del repo"),
+    }
+
+
+def header_sync_check() -> Dict:
+    """Comprueba que todas las copias de `randu_plus.h` del repo son identicas.
+
+    El header esta duplicado en la raiz y en `codigos-potenciados/`, y ambas
+    copias estan versionadas. Si solo se editara una, cada consumidor
+    compilaria un generador distinto sin que ninguna prueba lo delate: el
+    fallo seria invisible hasta que los numeros de dos ejecutables no
+    cuadren. Este test convierte la duplicidad en un invariante verificado."""
+    copies = {}
+    for label, path in HEADER_COPIES:
+        if os.path.exists(path):
+            with open(path, 'rb') as f:
+                copies[label] = hashlib.sha256(f.read()).hexdigest()
+
+    digests = set(copies.values())
+    identical = len(digests) <= 1
+    return {
+        "pass": identical and len(copies) > 0,
+        "copies": copies,
+        "n_copies": len(copies),
+        "identical": identical,
+        "detail": (f"las {len(copies)} copias de randu_plus.h del repo son "
+                   f"identicas (sha256 {list(digests)[0][:12] if digests else '-'})")
+        if identical
+        else ("las copias de randu_plus.h DIVERGEN entre si: el validador y "
+              "los consumidores de codigos-potenciados estarian midiendo "
+              "generadores distintos"),
     }
 
 # ────────────────────────────────────────────────────────────────────
@@ -363,6 +438,14 @@ escrita a mano en Python, para las semillas {seeds}, y comprueba además que
 una semilla par produce la misma secuencia que su versión impar (el
 `*state |= 1u` del header).
 
+`randu_plus.h` está **duplicado y versionado** en dos sitios del repo: la raíz
+y `codigos-potenciados/`. Cada consumidor compila con un `-I` distinto (el
+validador usa la raíz; `codigos-potenciados/testu01/Makefile` usa `-I..`), así
+que el cross-check se ejecuta contra **cada** copia y el test `HeaderSync`
+comprueba que todas son **byte a byte idénticas**. Si alguien edita una sola
+copia, las pruebas fallan en lugar de dejar que dos ejecutables midan
+generadores distintos.
+
 Si el header cambia, hay que actualizar la referencia en el mismo commit: si
 no, este test falla y lo dice. Ese fallo es intencional: es la alarma que
 impide que el informe vuelva a medir un generador que no sea el del repo.
@@ -430,6 +513,12 @@ def main():
     all_results.append(("HeaderCrossCheck", xcheck))
     print(f"   {xcheck['detail']}")
 
+    # 8. Sincronizacion de las copias del header del repo
+    print("\n8. Header Sync (las copias de randu_plus.h son identicas)...")
+    hsync = header_sync_check()
+    all_results.append(("HeaderSync", hsync))
+    print(f"   {hsync['detail']}")
+
     # Resumen
     print("\n" + "="*60)
     print("RESUMEN DE VALIDACIÓN randu_plus")
@@ -468,7 +557,11 @@ def main():
             elif 'ratio' in res:
                 f.write(f"| {name} | ratio={res['ratio']:.3f} | {'✅' if res['ratio']>0.5 else '❌'} |\n")
             elif name == "HeaderCrossCheck":
-                f.write(f"| {name} | {res['n_values']} valores x {len(res['checked_seeds'])} semillas | "
+                f.write(f"| {name} | {res['n_values']} valores x {len(res['checked_seeds'])} semillas "
+                        f"x {len(res['headers_checked'])} headers | "
+                        f"{'✅' if res['pass'] else '❌'} |\n")
+            elif name == "HeaderSync":
+                f.write(f"| {name} | {res['n_copies']} copias de randu_plus.h | "
                         f"{'✅' if res['pass'] else '❌'} |\n")
         f.write(f"\n**Total: {passed}/{total} pasados**\n")
         f.write(REPORT_CAVEAT.format(
