@@ -1,13 +1,13 @@
 # hybrid_prng - Generador PRNG híbrido moderno (C11)
 
 Combina **middle-square de von Neumann** (componente histórico, 4 dígitos) con
-el **generador de 64 bits del módulo `msws64/`** (cadena de multiplicación-
-xorshift de 3 rondas, fuente principal de entropía).
+el **generador de 64 bits del módulo `mult_xorshift64/`** (cadena de
+multiplicación-xorshift de 3 rondas, fuente principal de entropía).
 
 > **Corrección (2026-11-20).** Antes este README (y la cabecera) atribuían el
 > generador de 64 bits a Widynski (2017). **No lo es**: el msws64 de Widynski
-> es un xorshift 12/25/27 con multiplicador `0x2545F4914F6CDD1D`, disponible
-> como referencia en `../msws64/msws64_widynski.h`. Las dos implementaciones
+> es un generador de **cuadrado + incremento de Weyl + rotación de 32 bits**,
+> implementado en el módulo `../msws_widynski/`. Las dos implementaciones
 > difieren desde la primera iteración.
 
 ## ¿Por qué un híbrido?
@@ -84,7 +84,8 @@ Uso practico: generar IDs de 64 bits (ej. IDs de transaccion):
 
 ## Integración con el resto del proyecto
 
-- `codigos-potenciados/msws64/` — generador de 64 bits puro (componente del híbrido)
+- `codigos-potenciados/mult_xorshift64/` — generador de 64 bits puro (componente del híbrido)
+- `codigos-potenciados/msws_widynski/` — msws64 de Widynski real (cuadrado + Weyl + rotación)
 - `codigos-potenciados/goertzel/` — algoritmo Goertzel con formulaciones K, α, β, híbrida
 - `codigos-potenciados/randu_plus.c` — RANDU + fmix32
 
@@ -93,10 +94,11 @@ Uso practico: generar IDs de 64 bits (ej. IDs de transaccion):
 middle-square **original** sigue roto como PRNG independiente. Este híbrido
 no "arregla" middle-square; lo usa como componente mezclado con el generador
 de 64 bits.
-Para un PRNG puro y usable, usa el módulo `codigos-potenciados/msws64/`.
+Para un PRNG puro y usable, usa el módulo `codigos-potenciados/mult_xorshift64/`.
 
 ## Referencia
 
 - J. von Neumann, "Various techniques used in connection with random digits" (1946/1951)
 - M. Widynski, "Middle Square Weyl Sequence PRNG" (2017) — **referencia del
-  msws64 canónico**, que este módulo no implementa (ver la corrección arriba)
+  msws64 canónico**, implementado en `../msws_widynski/` (este módulo no lo
+  usa; ver la corrección arriba)

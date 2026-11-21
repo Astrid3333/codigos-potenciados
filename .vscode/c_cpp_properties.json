@@ -15,7 +15,8 @@
                 "${workspaceFolder}/codigos-potenciados/hybrid_prng",
                 "${workspaceFolder}/codigos-potenciados/lcg_lehmer",
                 "${workspaceFolder}/codigos-potenciados/middle_square",
-                "${workspaceFolder}/codigos-potenciados/msws64",
+                "${workspaceFolder}/codigos-potenciados/msws_widynski",
+                "${workspaceFolder}/codigos-potenciados/mult_xorshift64",
                 "${workspaceFolder}/codigos-potenciados/matematica_ancestral",
                 "${workspaceFolder}/codigos-potenciados/pi_ancestral"
             ],

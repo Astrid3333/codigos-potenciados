@@ -1,11 +1,11 @@
 # Informe de Validación randu_plus
 
-**Estudio didáctico, no homologación.** Este informe mide el comportamiento estadístico de una demostración de por qué RANDU no es un buen generador (ver `randu_plus.h`). No certifica ningún estándar (ISO/IEC 23837, PractRand) ni calidad criptográfica. Para generar números de calidad, este repo recomienda `msws64/`, `hybrid_prng/` o el híbrido LCG+msws64 de `lcg_lehmer/`.
+**Estudio didáctico, no homologación.** Este informe mide el comportamiento estadístico de una demostración de por qué RANDU no es un buen generador (ver `randu_plus.h`). No certifica ningún estándar (ISO/IEC 23837, PractRand) ni calidad criptográfica. Para generar números de calidad, este repo recomienda `mult_xorshift64/`, `hybrid_prng/` o el híbrido LCG+mult_xorshift64 de `lcg_lehmer/`.
 
 **Semillas:** 12345, 1, 3, 7, 4242, 65537, 99991, 2147483647 (8 semillas impares distintas)
 **Muestra por semilla:** 1000000 uint32 (4.0 MB)
-**Fecha:** Fri Nov 20 04:01:57 PM -03 2026
-**Git commit:** 9ec1837805dee41d7cfe8d36eb76b941ec2bc87f
+**Fecha:** Fri Nov 20 10:21:45 PM -03 2026
+**Git commit:** ed74b8dd8541921f1299161ff0fd8fd8a1cb1a40
 
 ## Resultados (peor caso entre semillas)
 
@@ -61,14 +61,8 @@
 | smallcrush | fmix | 99991 | ✅ pasan todas | 0 de 15 |
 | smallcrush | fmix | 2147483647 | ✅ pasan todas | 0 de 15 |
 | smallcrush | state | 12345 | ❌ falla | 14 de 15 |
-| crush | fmix | 12345 | ❌ falla | 6 de 144 |
-| crush | state | 12345 | ❌ falla | 131 de 144 |
 
 - Fallos en `smallcrush` modo `state`: BirthdaySpacings, Collision, Gap, SimpPoker, CouponCollector, MaxOft, WeightDistrib, MatrixRank, HammingIndep, RandomWalk1 H, RandomWalk1 M, RandomWalk1 J...
-
-- Fallos en `crush` modo `fmix`: Gap, r = 0, Gap, r = 22, MaxOft, t = 5, MaxOft, t = 10, MaxOft, t = 20, MaxOft, t = 30
-
-- Fallos en `crush` modo `state`: SerialOver, t = 2, SerialOver, t = 4, CollisionOver, t = 2, CollisionOver, t = 2, CollisionOver, t = 4, CollisionOver, t = 4, CollisionOver, t = 8, CollisionOver, t = 8, CollisionOver, t = 20, CollisionOver, t = 20, BirthdaySpacings, t = 2, BirthdaySpacings, t = 3...
 
 Version: TestU01 1.2.3. Harness: `codigos-potenciados/testu01/run_randu_plus` (fuentes versionadas; el binario se construye con el `Makefile` de ese directorio).
 
@@ -150,8 +144,10 @@ que el estado crudo falla de forma masiva. Es decir: `fmix32` borra la
 estructura *observable* en caja negra a escala SmallCrush, pero ni siquiera
 eso a escala Crush, y desde luego no la elimina (fmix32 es invertible) ni
 cambia el periodo, que sigue siendo 2^30. Para uso real,
-`mult_xorshift64/` o `hybrid_prng/`.
-generador de 64 bits del módulo `msws64/`; **no** es el msws64 de Widynski).
+`mult_xorshift64/` o `hybrid_prng/`. El generador de 64 bits del módulo
+`mult_xorshift64/` **no** es el msws64 de Widynski (2017); ese último vive en
+`codigos-potenciados/msws_widynski/` (verificado bit a bit contra fuentes
+externas).
 
 El harness de TestU01 está **versionado** en `codigos-potenciados/testu01/`
 (fuentes y `Makefile`); los binarios `run_randu_plus` y `lattice_recovery` no se

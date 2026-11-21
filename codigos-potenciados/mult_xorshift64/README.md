@@ -6,10 +6,10 @@
 > - Lo implementado es una **cadena de multiplicación-xorshift de 3 rondas**,
 >   cuyo nombre correcto es `mult_xorshift64`.
 > - El **msws64 de Widynski** (2017) es otro algoritmo: elevar el estado al
->   cuadrado, sumarle un incremento de Weyl acumulado y rotar 32 bits. Su
->   estructura está en `msws64_widynski.h` (este mismo directorio), tal como
->   la usa la implementación en Octave de `octave-mcp`
->   (`middle_square_weyl_tool.py`).
+>   cuadrado, sumarle un incremento de Weyl acumulado y rotar 32 bits. Ahora
+>   está implementado en el módulo `../msws_widynski/` (`msws_widynski.h`,
+>   con sus propias pruebas contra fuentes externas) y se usa aquí como
+>   referencia para comparar.
 > - El **xorshift64\* de Vigna** (desplazamientos 12/25/27 con multiplicador
 >   final `0x2545F4914F6CDD1D`) es un tercer generador, distinto de ambos.
 >
@@ -22,8 +22,7 @@
 | Archivo | Contenido |
 |---------|-----------|
 | `mult_xorshift64.h` | Cabecera con `mult_xorshift64_t`, `mult_xorshift64_seed`, `mult_xorshift64_next`, `mult_xorshift64_next_double`, `mult_xorshift64_next_bounded` |
-| `msws64_widynski.h` | msws64 de Widynski (cuadrado + Weyl + rotación), solo como referencia para comparar |
-| `mult_xorshift64.c` | Test comparativo: middle-square original, referencia de Widynski y χ² básico |
+| `mult_xorshift64.c` | Test comparativo: middle-square original, referencia de Widynski (`../msws_widynski/`) y χ² básico |
 | `README.md` | Este archivo |
 
 ## Fórmulas
@@ -42,7 +41,7 @@ salida = s
 
 La salida **es** el estado (no hay multiplicación final de salida).
 
-El msws64 de Widynski (`msws64_widynski.h`) es:
+El msws64 de Widynski (módulo `../msws_widynski/`) es:
 
 ```
 x = x * x                 (cuadrado)
@@ -105,6 +104,6 @@ gcc -std=c11 -O2 -Wall -Wextra -pedantic mult_xorshift64.c -o mult_xorshift64_te
 ## Referencias
 
 - M. Widynski, "Middle Square Weyl Sequence PRNG" (2017) — algoritmo del
-  fichero `msws64_widynski.h` (este módulo **no** lo implementa).
+  módulo `../msws_widynski/` (este módulo **no** lo implementa).
 - D. Blackman / S. Vigna, "Xorshift RNGs" (2014) — `xorshift64*`, tercer
   generador distinto, mentioned aquí solo para evitar confusiones.

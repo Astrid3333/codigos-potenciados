@@ -13,8 +13,10 @@ OJO: el generador de 64 bits del repo se llama `mult_xorshift64` (cadena de
 multiplicacion-xorshift de 3 rondas) desde el 2026-11-20, cuando se vio que el
 nombre "msws64" era incorrecto: el msws64 de Widynski (2017) usa cuadrado +
 incremento de Weyl + rotacion. Las medidas de este script corresponden al
-generador realmente implementado; el msws64 de Widynski (referencia en
-`codigos-potenciados/mult_xorshift64/msws64_widynski.h`) no se mide aqui.
+generador realmente implementado; el msws64 de Widynski vive en el modulo
+`codigos-potenciados/msws_widynski/` (verificado bit a bit contra fuentes
+externas) pero NO se mide aqui: su bateria estadistica de p-valores queda
+pendiente.
 
 Incluye un CONTROL NEGATIVO: el estado crudo de `randu_plus`, que sabemos
 roto (15 planos, p-value ~0). Si la bateria no lo detecta, la bateria no sirve
@@ -281,10 +283,10 @@ def write_report(results: Dict, control: Dict, clean: Dict, path: str) -> None:
         f.write("**Que se midio exactamente:** el generador de 64 bits del repo se "
                 "llama `mult_xorshift64` (cadena de multiplicacion-xorshift de 3 "
                 "rondas). NO es el msws64 de Widynski (2017), que usa cuadrado + "
-                "incremento de Weyl + rotacion y se referencia en "
-                "`codigos-potenciados/msws64_widynski.h` (no medido "
-                "aqui). Las cifras de este informe corresponden al generador "
-                "realmente implementado.\n\n")
+                "incremento de Weyl + rotacion y vive en el modulo "
+                "`codigos-potenciados/msws_widynski/` (verificado bit a bit contra "
+                "fuentes externas, pero NO medido con esta bateria). Las cifras de "
+                "este informe corresponden al generador realmente implementado.\n\n")
         f.write(f"**Semillas:** {', '.join(str(s) for s in results['mult_xorshift64']['seeds'])}"
                 f" (8 semillas)\n")
         f.write(f"**Muestra por semilla:** {results['mult_xorshift64']['n_values_u64']} uint64 "

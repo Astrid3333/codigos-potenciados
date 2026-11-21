@@ -1,6 +1,50 @@
 # Current State
 
-- Goal: **ciclo 21** — corregir la atribución (segundo pase del revisor): el
+- Goal: **ciclo 22** — ítem 1 del revisor: implementar el msws64 **real** de
+  Widynski (2017) en un módulo propio `codigos-potenciados/msws_widynski/`,
+  verificado bit a bit contra fuentes externas independientes, y corregir las
+  rutas/afirmaciones obsoletas que quedaron tras renombrar `msws64/` →
+  `mult_xorshift64/`.
+- Stage: **ciclo 22 en curso; código y docs del módulo cerrados, pendiente
+  actualizar referencias del resto del repo, recompilar y commit local**
+  (nota completa en `notes/2026-11-20.md`).
+  - **Módulo nuevo**: `codigos-potenciados/msws_widynski/msws_widynski.h`
+    (header-only, `static inline`), `msws_widynski_test.c` (20/20), `README.md`.
+    Variantes: `msws32` (32 bits), `msws64` (dos carriles, 64 bits) y
+    `msws64_mono` (64 bits). API en inglés (`_seed`/`_next`), docstrings en
+    español; `seed_stream`, `next_double`, `next_bounded` (rechazo sin sesgo) y
+    `jump_ahead` **propio** (no bit-idéntico al del autor; documentado).
+  - **Semántica confirmada por oráculos** (paper arXiv:1704.00358 §2/§3/§8,
+    headers oficiales v5 del autor, crate Rust `twe4ked/msws`, crate Rust
+    `tidwall/weyl-rs`): `msws32` = `x*=x; x+= (w+=s); return rot32(x)`;
+    `msws64` = dos carriles, `xx = x1 += (w1 += s1)` (sin rotar) XOR `x2` ya
+    rotado; `msws64_mono` ≡ `weyl-rs` bit a bit.
+  - **Verificación**: 12 vectores de msws32 y 12 de msws64 de dos carriles
+    coinciden bit a bit con los headers oficiales v5 **y** con el crate Rust
+    `twe4ked/msws` (dos oráculos concordantes); msws32 y `msws64_mono` verificados
+    además contra `weyl-rs`. 20/20 tests pasan con flags estrictos y 0
+    warnings; χ² = 21.15 (msws32), 12.14 (msws64), 13.85 (mono) con 16 bins y
+    1e6 muestras (crítico 30.58).
+  - **Licencia**: el código oficial del autor es GPL v3 → **no** se pega código;
+    solo vectores numéricos congelados con cita (datos, no expresión). `jump_ahead`
+    se reimplementa desde la prosa del paper + Teorema A (`w += m·s`) con
+    randomización estilo counter-based squares (Lumbroso), no bit a bit la
+    rutina del autor.
+  - **Borrado**: `codigos-potenciados/mult_xorshift64/msws64_widynski.h` (el
+    header viejo del ciclo 20/21) → `git rm`; el contenido vive ahora en el
+    módulo `msws_widynski/`.
+  - **Rutas obsoletas ya corregidas**: README raíz, `knowledge/current-state.md`,
+    `prng_modules_validator.py` (docstring + informe), `tools/gen_compile_commands.py`
+    (MODULES: `msws64` → `msws_widynski`, + `mult_xorshift64`),
+    `mult_xorshift64/{mult_xorshift64.h,mult_xorshift64.c,README.md}`,
+    `hybrid_prng/README.md` (afirmación falsa corregida: el msws64 de Widynski
+    NO es xorshift 12/25/27 con multiplicador `0x2545F4914F6CDD1D`).
+  - **Pendiente**: `VALIDATION_REPORT_PRNG_MODULES.md` y `VALIDATION_REPORT.md`
+    regenerados con el texto nuevo; `randu_plus_validator.py` (653, 702, 990);
+    `.vscode/c_cpp_properties.json` (línea 18, ruta `codigos-potenciados/msws64`);
+    nota del ciclo 22 en `notes/2026-11-20.md`; commit local y **push solo con
+    pedido explícito**.
+- Goal anterior: **ciclo 21** — corregir la atribución (segundo pase del revisor): el
   `msws64_widynski.h` añadido en el ciclo 20 era el **xorshift64\* de Vigna**, no
   el msws64 de Widynski; renombrar el módulo a `mult_xorshift64/` y añadir al
   informe los resultados reales de TestU01 (SmallCrush **y** Crush).
@@ -17,7 +61,8 @@
     `mult_xorshift64.{h,c}`, tipo `mult_xorshift64_t`,
     `mult_xorshift64_seed/next/next_double/next_bounded`);
     `msws64_widynski.h` reescrito como Widynski genuino (cuadrado + Weyl +
-    rotl32, incremento documentado); símbolos del híbrido LCG
+    rotl32, incremento documentado) — **supersedido en el ciclo 22**: ese header
+    se borró y su contenido vive ahora en `codigos-potenciados/msws_widynski/`; símbolos del híbrido LCG
     `hybrid_lcg_msws_*` → `hybrid_lcg_mult_xorshift_*`,
     `msws64_pure_next` → `mult_xorshift64_pure_next`; actualizados
     `middle_square/*`, `lcg_lehmer/*`, `hybrid_prng/{README.md,hybrid_prng.h}`,
@@ -57,7 +102,8 @@
     (C: `/tmp/opencode/wid_check.c`). El error venía de una sesión anterior
     (pasted-15.txt) que presentó esas constantes como "Widynski 2017" sin
     compararlas.
-  - **Cambios**: nuevo `msws64_widynski.h` (referencia canónica);
+  - **Cambios**: nuevo `msws64_widynski.h` (referencia canónica; **borrado en el
+    ciclo 22** y sustituido por el módulo `codigos-potenciados/msws_widynski/`);
     `msws64.h`/`msws64.c` honestos (el test compara y muestra las diferencias;
     "periodo" → no verificado); README de `msws64/`, README raíz,
     `hybrid_prng/{README.md,hybrid_prng.h}`, `lcg_lehmer/{README.md,lcg_lehmer.c,lcg_lehmer.h}`,

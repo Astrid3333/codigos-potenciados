@@ -16,10 +16,10 @@ Repositorio de trabajo del agente `evolve-agent`. Contiene código C bajo `codig
 >   Widynski (2017). **El nombre y la atribución eran falsos.** El generador es
 >   una cadena de multiplicación-xorshift de 3 rondas y ahora se llama
 >   `codigos-potenciados/mult_xorshift64/`. El msws64 real de Widynski (cuadrado + incremento
->   de Weyl + rotación de 32 bits) está en
->   `codigos-potenciados/mult_xorshift64/msws64_widynski.h`; el xorshift64* de Vigna es un
->   tercer generador distinto. Los tres dan salidas diferentes desde la
->   primera iteración.
+>   de Weyl + rotación de 32 bits) está implementado en
+>   `codigos-potenciados/msws_widynski/` (verificado contra fuentes externas
+>   independientes); el xorshift64* de Vigna es un tercer generador distinto.
+>   Los tres dan salidas diferentes desde la primera iteración.
 > - **Los informes de este repo son estudios, no homologaciones.** Nada de lo
 >   que hay aquí certifica un estándar (ISO/IEC 23837, PractRand) ni una
 >   calidad criptográfica. Lo que sí hacen es *medir* con p-values publicables.
@@ -41,7 +41,8 @@ Repositorio de trabajo del agente `evolve-agent`. Contiene código C bajo `codig
 | `hastings/` | Aproximaciones polinómicas de sin, atan, atan2, asin, sqrt, exp, log1p, log, pow (grado 5 en x², hasta grado 11 en x) | Listo para Arduino, error 1e-5 o mejor; Remez minimax opcional |
 | `cordic/` | CORDIC (Volder 1959): seno/coseno solo con sumas, restas y shifts | Listo para Arduino |
 | `lcg_lehmer/` | Análisis espectral de LCG (RANDU, MINSTD), prueba de período, híbrido LCG+mult_xorshift64, TCR-LCG | Completo |
-| `mult_xorshift64/` | Generador de 64 bits (multiplicación + xorshift de 3 rondas) + middle-square de von Neumann (referencia) + msws64 de Widynski como referencia | Completo |
+| `mult_xorshift64/` | Generador de 64 bits (multiplicación + xorshift de 3 rondas) + middle-square de von Neumann (referencia) | Completo |
+| `msws_widynski/` | MSWS de Widynski (2017): cuadrado + Weyl + rotación, en variantes de 32 bits, 64 bits de dos carriles y 64 bits mono; verificado contra fuentes externas | Completo (20/20 tests) |
 | `middle_square/` | Generador de von Neumann de 4 dígitos con ciclo, sumideros y comparación contra `mult_xorshift64` | Completo (17/17 tests) |
 | `hybrid_prng/` | PRNG híbrido middle-square + generador de 64 bits, con tests estadísticos y unitarios | Completo |
 | `abacus_vedic/` | Suanpan chino sobre cuentas (suma, resta, multiplicación) + multiplicación védica (urdhva) y cruces | Completo (29/29 tests) |
@@ -66,7 +67,8 @@ los módulos del repo, con su ruta y su test:
 
 | Módulo | Rutas exactas | Qué aporta frente a un LCG lineal |
 |---|---|---|
-| `mult_xorshift64` | `codigos-potenciados/mult_xorshift64/mult_xorshift64.h`, `mult_xorshift64.c`, `msws64_widynski.h`, `README.md` | PRNG de 64 bits (mult-xorshift de 3 rondas); **no** es el msws64 de Widynski ni el xorshift64* de Vigna; su período no está verificado y el sumidero 0 se evita forzando semilla impar |
+| `mult_xorshift64` | `codigos-potenciados/mult_xorshift64/mult_xorshift64.h`, `mult_xorshift64.c`, `README.md` | PRNG de 64 bits (mult-xorshift de 3 rondas); **no** es el msws64 de Widynski ni el xorshift64* de Vigna; su período no está verificado y el sumidero 0 se evita forzando semilla impar |
+| `msws_widynski` | `codigos-potenciados/msws_widynski/msws_widynski.h`, `msws_widynski_test.c`, `README.md` | MSWS de Widynski (2017) en 3 variantes (32 bits, 64 bits de dos carriles, 64 bits mono), con salto adelante propio; verificado bit a bit contra la implementación de referencia del autor, el crate Rust `msws` y el crate Rust `weyl-rs` |
 | `hybrid_prng` | `codigos-potenciados/hybrid_prng/hybrid_prng.h`, `hybrid_prng.c`, `hybrid_prng_test.c` | middle-square + generador de 64 bits: el estado entra por el square, la salida sale por el generador de 64 bits |
 | `lcg_lehmer` | `codigos-potenciados/lcg_lehmer/lcg_lehmer.h`, `lcg_lehmer.c`, `lcg_lehmer_test.c` | análisis espectral de LCG (RANDU, MINSTD), prueba de período, **híbrido LCG+mult_xorshift64** y TCR-LCG |
 | `middle_square` | `codigos-potenciados/middle_square/` | von Neumann de 4 dígitos con ciclo, sumideros y comparación contra `mult_xorshift64` (17/17 tests) |
@@ -111,8 +113,10 @@ LCG+mult_xorshift64 pasan, pero con las salvedades anteriores.
 
 > **Qué se midió exactamente:** estas cifras corresponden al generador que el
 > módulo `mult_xorshift64/` implementa (cadena de multiplicación-xorshift de 3
-> rondas), **no** al msws64 de Widynski. La referencia de Widynski
-> (`codigos-potenciados/mult_xorshift64/msws64_widynski.h`) todavía no está sometida a esta batería.
+> rondas), **no** al msws64 de Widynski. El msws64 de Widynski
+> (`codigos-potenciados/msws_widynski/`) tiene su propia batería de verificación
+> contra fuentes externas, pero **todavía no está sometida a esta batería
+> estadística** de p-valores.
 
 Lo que **no** hay todavía (y conviene no dar por hecho): un harness de TestU01
 o una corrida de PractRand para `mult_xorshift64`/`hybrid_prng`. El único harness de
@@ -204,6 +208,10 @@ gcc -std=c11 -O2 -Wall -Wextra codigos-potenciados/abacus_vedic/abacus_vedic.c c
 
 # pi_ancestral
 gcc -std=c11 -O2 -Wall -Wextra codigos-potenciados/pi_ancestral/pi_ancestral.c codigos-potenciados/pi_ancestral/pi_ancestral_test.c -lm -o /tmp/pi_ancestral_test
+
+# msws_widynski (Widynski 2017: 32 bits, 64 bits de dos carriles, 64 bits mono)
+gcc -std=c11 -O2 -Wall -Wextra -pedantic codigos-potenciados/msws_widynski/msws_widynski_test.c -o /tmp/msws_widynski_test
+/tmp/msws_widynski_test
 
 # sine_fixed (raíz): Q16.16 con tabla e interpolación, test con criterio
 cc -std=c99 -O2 -Wall -Wextra -pedantic -Werror -DTEST sine_fixed.c -lm -o /tmp/sine_fixed_test

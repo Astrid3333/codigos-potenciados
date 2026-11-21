@@ -13,7 +13,7 @@
  * que la etiqueta diga lo que el codigo hace.
  *
  * Para el msws64 real de Widynski (cuadrado + incremento de Weyl + rotacion)
- * ver "msws64_widynski.h" en este mismo directorio.
+ * ver el modulo "msws_widynski" en el directorio codigos-potenciados/.
  *
  * Algoritmo implementado (estado de 64 bits; la salida ES el estado):
  *   s  = s * 6364136223846793005

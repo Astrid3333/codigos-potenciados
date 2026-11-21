@@ -2,7 +2,7 @@
 
 **Estudio, no homologacion.** Mide el flujo de bits de `mult_xorshift64`, `hybrid_prng` y del híbrido LCG+mult_xorshift64 con la misma bateria que usa `randu_plus_validator.py`, y la acompaña de dos controles: uno limpio (`/dev/urandom`, que debe comportarse como un generador ideal) y uno defectuoso (el estado crudo de `randu_plus`, que debe fallar). No es TestU01 ni PractRand: la biblioteca completa de TestU01 no esta instalada en este entorno; el harness versionado (`codigos-potenciados/testu01/`) solo cubre `randu_plus`, asi que estos tres generadores todavia no se han sometido a TestU01 real.
 
-**Que se midio exactamente:** el generador de 64 bits del repo se llama `mult_xorshift64` (cadena de multiplicacion-xorshift de 3 rondas). NO es el msws64 de Widynski (2017), que usa cuadrado + incremento de Weyl + rotacion y se referencia en `codigos-potenciados/msws64_widynski.h` (no medido aqui). Las cifras de este informe corresponden al generador realmente implementado.
+**Que se midio exactamente:** el generador de 64 bits del repo se llama `mult_xorshift64` (cadena de multiplicacion-xorshift de 3 rondas). NO es el msws64 de Widynski (2017), que usa cuadrado + incremento de Weyl + rotacion y vive en el modulo `codigos-potenciados/msws_widynski/` (verificado bit a bit contra fuentes externas, pero NO medido con esta bateria). Las cifras de este informe corresponden al generador realmente implementado.
 
 **Semillas:** 12345, 1, 3, 7, 4242, 65537, 99991, 2147483647 (8 semillas)
 **Muestra por semilla:** 500000 uint64 = 1000000 uint32 (palabras de 32 bits NO solapadas, en el orden de bytes que ve un consumidor)
@@ -61,13 +61,13 @@
 
 | Test | metrica | peor caso | pass |
 |---|---|---|---|
-| Spectral3D | ratio | 0.991634 | ✅ |
-| MarsagliaSpectral3D | p_value | 0.0353539 | ✅ |
+| Spectral3D | ratio | 0.992675 | ✅ |
+| MarsagliaSpectral3D | p_value | 0.0180632 | ✅ |
 | BirthdaySpacings | p_value | 0.097023 | ✅ |
-| Permutation | p_value | 0.205883 | ✅ |
-| NIST_Frequency | p_value | 0.323064 | ✅ |
-| NIST_BlockFreq | p_value | 0.0835749 | ✅ |
-| NIST_Runs | p_value | 0.0787684 | ✅ |
+| Permutation | p_value | 0.295304 | ✅ |
+| NIST_Frequency | p_value | 0.0555123 | ✅ |
+| NIST_BlockFreq | p_value | 0.0575769 | ✅ |
+| NIST_Runs | p_value | 0.0852689 | ✅ |
 
 ## Control negativo: estado crudo de randu_plus (debe fallar)
 

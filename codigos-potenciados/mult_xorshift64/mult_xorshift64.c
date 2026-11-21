@@ -7,8 +7,8 @@
  * el xorshift64* de Vigna. El algoritmo realmente implementado es una cadena
  * de multiplicacion por constantes impares y xorshift (ver
  * mult_xorshift64.h). El msws64 de Widynski (cuadrado + Weyl + rotacion) esta
- * en msws64_widynski.h y se usa aqui como referencia: el test comprueba que
- * ambas salidas difieren desde la primera iteracion.
+ * en el modulo ../msws_widynski/ y se usa aqui como referencia: el test
+ * comprueba que ambas salidas difieren desde la primera iteracion.
  *
  * Comparativa incluida en el test:
  *   - middle-square original (4 digitos): ciclos cortos, colapso a 0
@@ -20,7 +20,7 @@
 #include <stdint.h>
 #include <math.h>
 #include "mult_xorshift64.h"
-#include "msws64_widynski.h"
+#include "../msws_widynski/msws_widynski.h"
 
 /* ---------- middle-square de von Neumann (4 digitos) ---------- */
 static uint16_t ms_next_4(uint16_t x) {
@@ -95,14 +95,15 @@ int main(void) {
 
     /* Comparacion con el msws64 de Widynski (cuadrado + Weyl + rotacion) */
     mult_xorshift64_t mine;
+    msws64_widynski_t wx;
     mult_xorshift64_seed(&mine, 12345ULL);
-    uint64_t wx = 12345ULL, ww = 0ULL;
-    msws64_widynski_seed(&wx, &ww, 12345ULL);
+    msws64_widynski_seed(&wx, MSWS64_WIDYNSKI_S1_PAPER,
+                          MSWS64_WIDYNSKI_S2_PAPER);
     printf("Comparacion con el msws64 de Widynski (cuadrado + Weyl + rotacion):\n");
     int differ = 0;
     for (int i = 1; i <= 5; ++i) {
         uint64_t a = mult_xorshift64_next(&mine);
-        uint64_t b = msws64_widynski_next(&wx, &ww);
+        uint64_t b = msws64_widynski_next(&wx);
         if (a != b) differ++;
         printf("  %2d: este=%020llu  widynski=%020llu  %s\n", i,
                (unsigned long long)a, (unsigned long long)b,

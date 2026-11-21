@@ -698,8 +698,10 @@ que el estado crudo falla de forma masiva. Es decir: `fmix32` borra la
 estructura *observable* en caja negra a escala SmallCrush, pero ni siquiera
 eso a escala Crush, y desde luego no la elimina (fmix32 es invertible) ni
 cambia el periodo, que sigue siendo 2^30. Para uso real,
-`mult_xorshift64/` o `hybrid_prng/`.
-generador de 64 bits del módulo `msws64/`; **no** es el msws64 de Widynski).
+`mult_xorshift64/` o `hybrid_prng/`. El generador de 64 bits del módulo
+`mult_xorshift64/` **no** es el msws64 de Widynski (2017); ese último vive en
+`codigos-potenciados/msws_widynski/` (verificado bit a bit contra fuentes
+externas).
 
 El harness de TestU01 está **versionado** en `codigos-potenciados/testu01/`
 (fuentes y `Makefile`); los binarios `run_randu_plus` y `lattice_recovery` no se
@@ -987,8 +989,8 @@ def main():
                 "no es un buen generador (ver `randu_plus.h`). No certifica "
                 "ningún estándar (ISO/IEC 23837, PractRand) ni calidad "
                 "criptográfica. Para generar números de calidad, este repo "
-                "recomienda `msws64/`, `hybrid_prng/` o el híbrido LCG+msws64 "
-                "de `lcg_lehmer/`.\n\n")
+                "recomienda `mult_xorshift64/`, `hybrid_prng/` o el híbrido "
+                "LCG+mult_xorshift64 de `lcg_lehmer/`.\n\n")
         f.write(f"**Semillas:** {', '.join(str(s) for s in seeds)} "
                 f"({len(seeds)} semillas impares distintas)\n")
         f.write(f"**Muestra por semilla:** {n_values} uint32 "

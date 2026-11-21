@@ -24,7 +24,8 @@ MODULES = [
     "hybrid_prng",
     "lcg_lehmer",
     "middle_square",
-    "msws64",
+    "msws_widynski",
+    "mult_xorshift64",
     "matematica_ancestral",
     "pi_ancestral",
 ]
