@@ -2,14 +2,16 @@
 
 - Goal: **ciclo 22** — ítem 1 del revisor: implementar el msws64 **real** de
   Widynski (2017) en un módulo propio `codigos-potenciados/msws_widynski/`,
-  verificado bit a bit contra fuentes externas independientes, y corregir las
-  rutas/afirmaciones obsoletas que quedaron tras renombrar `msws64/` →
-  `mult_xorshift64/`.
-- Stage: **ciclo 22 en curso; código y docs del módulo cerrados, pendiente
-  actualizar referencias del resto del repo, recompilar y commit local**
-  (nota completa en `notes/2026-11-20.md`).
+  verificado bit a bit contra oráculos externos (con la cobertura real por
+  variante declarada sin exagerarla), y corregir las rutas/afirmaciones
+  obsoletas que quedaron tras renombrar `msws64/` → `mult_xorshift64/`.
+- Stage: **ciclo 22 en curso; referencias del repo ya corregidas y pusheadas
+  (`eb894b5`, `ece1878`); en curso el endurecimiento de la verificación de
+  `msws_widynski`** (test de 32/32 con oráculos congelados multi-semilla,
+  detector estadístico con p-valor exacto y controles negativos; pendiente
+  ítems 3-9 del ciclo 22, commit local, **push solo con pedido explícito**).
   - **Módulo nuevo**: `codigos-potenciados/msws_widynski/msws_widynski.h`
-    (header-only, `static inline`), `msws_widynski_test.c` (20/20), `README.md`.
+    (header-only, `static inline`), `msws_widynski_test.c` (32/32), `README.md`.
     Variantes: `msws32` (32 bits), `msws64` (dos carriles, 64 bits) y
     `msws64_mono` (64 bits). API en inglés (`_seed`/`_next`), docstrings en
     español; `seed_stream`, `next_double`, `next_bounded` (rechazo sin sesgo) y
@@ -19,12 +21,39 @@
     `tidwall/weyl-rs`): `msws32` = `x*=x; x+= (w+=s); return rot32(x)`;
     `msws64` = dos carriles, `xx = x1 += (w1 += s1)` (sin rotar) XOR `x2` ya
     rotado; `msws64_mono` ≡ `weyl-rs` bit a bit.
-  - **Verificación**: 12 vectores de msws32 y 12 de msws64 de dos carriles
-    coinciden bit a bit con los headers oficiales v5 **y** con el crate Rust
-    `twe4ked/msws` (dos oráculos concordantes); msws32 y `msws64_mono` verificados
-    además contra `weyl-rs`. 20/20 tests pasan con flags estrictos y 0
-    warnings; χ² = 21.15 (msws32), 12.14 (msws64), 13.85 (mono) con 16 bins y
-    1e6 muestras (crítico 30.58).
+  - **Verificación bit a bit** (arnés en `/tmp/opencode/verify_msws/`: oráculo
+    Rust independiente escrito desde el artículo + los crates originales):
+    32 semillas × 2000 salidas × 5 comparaciones = **320.000 comparaciones, 0
+    discrepancias**.
+  - **Cobertura real por variante (límite honesto)**:
+    - `msws32`: autor v5 + crate `twe4ked/msws` + crate `weyl-rs` (vía
+      `low32(mono) == msws32`) → **tres oráculos concordantes**.
+    - `msws64` (dos carriles): autor v5 + oráculo Rust independiente escrito
+      desde el §"64-bit Output" del artículo → **dos oráculos**. **No existe
+      crate de terceros que implemente esta variante**: el crate `msws` solo
+      genera 32 bits.
+    - `msws64_mono`: crate `weyl-rs` + oráculo Rust independiente → **dos
+      oráculos**.
+    - Afirmación anterior ("tres fuentes externas independientes" para las tres
+      variantes) **corregida** por ser falsa para `msws64` de dos carriles.
+  - **32/32 tests pasan con flags estrictos y 0 warnings**; el test incorpora
+    tablas congeladas multi-semilla (6 semillas × 12 salidas para `msws32` y
+    `msws64`; 6 × 4 para mono), detector estadístico reutilizable (histograma
+    de 256 bins + balance de bits + Pearson lag-1) con **p-valor exacto** de
+    χ² validado contra 10 puntos de mpmath (error ≤1.5e-7), **umbral Bonferroni
+    exacto 0.001/36** (3 variantes × 6 semillas × 2 métricas con p-valor) y
+    **3 controles negativos** que el detector debe rechazar (RANDU mod 2³¹,
+    LCG mod 2³² emitiendo el byte bajo, byte alto restringido a 4 valores).
+    Medido: 2²² muestras por flujo → p mín. histograma **2.56e-2**, p mín.
+    balance **9.59e-1**, |r| máx. **0.000840**.
+  - **Degeneración documentada y verificada**: `s = 1` deja msws32 atrapado en
+    cero de forma permanente y `(s1, s2) = (1, 3)` degenera msws64 de dos
+    carriles (`0x0000000300000001, 0x0000000600000002, …`). **Es faithfulness,
+    no bug**: la referencia del autor presenta la misma trampa. El comentario
+    del header que afirmaba lo contrario se corrigió.
+  - **Corrección previa**: el supuesto "sesgo de bits" era un error del helper
+    (esperado `N/2`, no `N/bins`). El balance de bits es correcto (~50 % por
+    posición) y no debe documentarse como sesgo.
   - **Licencia**: el código oficial del autor es GPL v3 → **no** se pega código;
     solo vectores numéricos congelados con cita (datos, no expresión). `jump_ahead`
     se reimplementa desde la prosa del paper + Teorema A (`w += m·s`) con
@@ -39,11 +68,12 @@
     `mult_xorshift64/{mult_xorshift64.h,mult_xorshift64.c,README.md}`,
     `hybrid_prng/README.md` (afirmación falsa corregida: el msws64 de Widynski
     NO es xorshift 12/25/27 con multiplicador `0x2545F4914F6CDD1D`).
-  - **Pendiente**: `VALIDATION_REPORT_PRNG_MODULES.md` y `VALIDATION_REPORT.md`
-    regenerados con el texto nuevo; `randu_plus_validator.py` (653, 702, 990);
-    `.vscode/c_cpp_properties.json` (línea 18, ruta `codigos-potenciados/msws64`);
-    nota del ciclo 22 en `notes/2026-11-20.md`; commit local y **push solo con
-    pedido explícito**.
+  - **Pendiente**: ítems 3-9 del ciclo 22 (conteo exacto de SmallCrush por
+    semilla, Crush/BigCrush frescos, extender el arnés TestU01 a
+    `mult_xorshift64`/`hybrid_prng`, renombrar/documentar `hastings/`, decidir
+    sobre el clon externo y sobre versionar la memoria del repo); nota del
+    ciclo 22 en `notes/2026-11-20.md`; commit local y **push solo con pedido
+    explícito**.
 - Goal anterior: **ciclo 21** — corregir la atribución (segundo pase del revisor): el
   `msws64_widynski.h` añadido en el ciclo 20 era el **xorshift64\* de Vigna**, no
   el msws64 de Widynski; renombrar el módulo a `mult_xorshift64/` y añadir al

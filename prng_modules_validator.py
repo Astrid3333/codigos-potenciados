@@ -14,9 +14,11 @@ multiplicacion-xorshift de 3 rondas) desde el 2026-11-20, cuando se vio que el
 nombre "msws64" era incorrecto: el msws64 de Widynski (2017) usa cuadrado +
 incremento de Weyl + rotacion. Las medidas de este script corresponden al
 generador realmente implementado; el msws64 de Widynski vive en el modulo
-`codigos-potenciados/msws_widynski/` (verificado bit a bit contra fuentes
-externas) pero NO se mide aqui: su bateria estadistica de p-valores queda
-pendiente.
+`codigos-potenciados/msws_widynski/` (verificado bit a bit contra la
+implementacion de referencia del autor, el crate Rust `msws` para `msws32` y el
+crate Rust `weyl-rs` para la variante mono) pero NO se mide aqui: su propia
+bateria estadistica (p-valores exactos, umbral Bonferroni y controles
+negativos) vive en `codigos-potenciados/msws_widynski/msws_widynski_test.c`.
 
 Incluye un CONTROL NEGATIVO: el estado crudo de `randu_plus`, que sabemos
 roto (15 planos, p-value ~0). Si la bateria no lo detecta, la bateria no sirve
@@ -285,7 +287,12 @@ def write_report(results: Dict, control: Dict, clean: Dict, path: str) -> None:
                 "rondas). NO es el msws64 de Widynski (2017), que usa cuadrado + "
                 "incremento de Weyl + rotacion y vive en el modulo "
                 "`codigos-potenciados/msws_widynski/` (verificado bit a bit contra "
-                "fuentes externas, pero NO medido con esta bateria). Las cifras de "
+                "la implementacion de referencia del autor, el crate Rust `msws` "
+                "para `msws32` y el crate Rust `weyl-rs` para la variante mono; NO "
+                "hay oraculo de terceros para la variante `msws64` de dos carriles, "
+                "que se contrasta contra el header del autor y una reimplementacion "
+                "independiente escrita desde el articulo), pero NO medido con esta "
+                "bateria). Las cifras de "
                 "este informe corresponden al generador realmente implementado.\n\n")
         f.write(f"**Semillas:** {', '.join(str(s) for s in results['mult_xorshift64']['seeds'])}"
                 f" (8 semillas)\n")

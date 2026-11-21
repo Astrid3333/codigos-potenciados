@@ -76,6 +76,24 @@ El incremento `s` debe ser **impar** (Teorema A del artículo: la secuencia de
 Weyl tiene período 2⁶⁴ solo si `s` es impar y coprimo con 2⁶⁴), por lo que las
 funciones de siembra fuerzan el bit menos significativo con `| 1`.
 
+### Semillas degeneradas
+
+Con `s = 1` el generador **queda atrapado en cero de forma permanente**: la
+primera salida es 0 y el estado vuelve a la forma `k * 2^32`, cuyo cuadrado se
+anula módulo 2⁶⁴, de modo que todas las salidas siguientes siguen siendo 0.
+En la variante de dos carriles, `(s1, s2) = (1, 3)` degenera igualmente y
+produce `0x0000000300000001`, `0x0000000600000002`, `0x0000000900000003`,
+`0x0000000c00000004`, …
+
+Esto **no es un fallo de este módulo**: la implementación de referencia del
+autor presenta exactamente la misma trampa. Las pruebas verifican que el
+módulo la reproduce fielmente, y el apartado de degeneración del encabezado
+advierte de ella. Use un incremento impar distinto de 1.
+
+Las semillas publicadas por el autor en su cabecera de referencia (`seed.h`)
+son todas de 64 bits e **impares**, por lo que la fuerza `s | 1` de este
+módulo no altera ninguna de ellas.
+
 ## Verificación
 
 Las pruebas **no** comparan contra la salida de este mismo módulo: las
@@ -84,22 +102,45 @@ independientes**:
 
 | Fuente | Licencia | Qué aporta |
 |---|---|---|
-| Implementación de referencia del autor, v5 (`mswsrngv5`: `msws32.h`, `msws64.h`) | GPL v3 | Oráculo canónico de `msws32` y `msws64` (dos carriles) |
-| Crate Rust [`twe4ked/msws`](https://crates.io/crates/msws) | sin LICENSE declarada | Segunda fuente para `msws32`: coincide **bit a bit** (12/12) con el autor |
+| Implementación de referencia del autor, v5 (`mswsrngv5`: `msws32.h`, `msws64.h`) | GPL v3 | Oráculo canónico de `msws32` y `msws64` (dos carriles), **con 6 semillas y 12 salidas por semilla** |
+| Crate Rust [`twe4ked/msws`](https://crates.io/crates/msws) | sin LICENSE declarada | Segunda fuente para `msws32`: coincide **bit a bit** (12/12) con el autor. **Solo implementa 32 bits**: no cubre `msws64` |
 | Crate Rust [`tidwall/weyl-rs`](https://crates.io/crates/weyl) | ISC | Oráculo de la variante mono de 64 bits (16/16 vectores) |
+| Artículo de Widynski (2017), §"64-bit Output" | arXiv:1704.00358 | El texto del artículo incluye el listado del algoritmo de dos carriles: permite escribir un **oráculo independiente** (reimplementado desde el artículo, no desde el código del autor) |
+
+**Límite honesto de la cobertura:** no existe oráculo publicado por terceros
+para `msws64` de dos carriles. Su verificación bit a bit es contra el header
+del autor y contra la reimplementación independiente escrita desde el artículo.
+Para `msws32` hay tres fuentes concordantes (autor, crate `msws`, crate `weyl`
+vía `low32(mono) == msws32`); para la variante mono hay dos (autor vía el
+listing del artículo y crate `weyl`).
 
 Además se comprueban invariantes internas, el ejemplo de la sección 3 del
 artículo, las propiedades matemáticas del salto adelante, los rangos de las
 funciones de ayuda y la uniformidad (chi-cuadrado).
 
+### Detector estadístico
+
+El test incluye un detector reutilizable (histograma de 256 bins, balance de
+bits posición a posición y correlación de Pearson lag-1) con:
+
+- **p-valor exacto** de chi-cuadrado, validado contra 10 puntos calculados con
+  `mpmath` 1.3.0 (tolerancia 1e-6).
+- **Umbral Bonferroni exacto**: `0.001 / 36`, donde 36 = 3 variantes × 6
+  semillas × 2 métricas con p-valor (histograma y balance de bits).
+- **Controles negativos obligatorios**: el detector debe *rechazar* material
+  defectuoso (RANDU módulo 2³¹, LCG módulo 2³² emitiendo solo el byte bajo, y
+  un flujo con el byte alto restringido a 4 valores). Un detector que solo
+  pasa con material bueno reproduce el punto ciego, así que estos controles
+  son parte integral de la prueba.
+
 ### Compilar y ejecutar
 
 ```bash
-gcc -std=c11 -O2 -Wall -Wextra -pedantic msws_widynski_test.c -o prueba
+gcc -std=c11 -O2 -Wall -Wextra -pedantic msws_widynski_test.c -o prueba -lm
 ./prueba
 ```
 
-Resultado actual: **20/20 pruebas pasan**.
+Resultado actual: **32/32 pruebas pasan**.
 
 ## Licencia y atribución
 

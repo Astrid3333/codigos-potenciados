@@ -86,8 +86,13 @@ static inline uint64_t msws_widynski_rot(uint64_t v) {
 
 /* Inicializa el generador con un incremento de Weyl s.
  * x = 0, w = 0 (estado canonico del articulo) y s forzado a impar.
- * La semilla 0 no deja el generador atrapado en 0 porque el incremento de
- * Weyl es impar y distinto de cero. */
+ * Aviso: con s = 1 el generador queda atrapado en cero de forma permanente.
+ * Tras el primer paso x = 1 y w = 1, de modo que la rotacion deja
+ * x = 0x0000000100000000 y la salida de 32 bits es 0; ademas x*x se anula
+ * mod 2^64 (1*2^32)^2 = 2^64, y el estado vuelve a la forma k*2^32, con lo
+ * que las salidas siguientes siguen siendo 0. Es la misma trampa que
+ * presenta la implementacion de referencia del autor, no un fallo de este
+ * modulo: use un incremento impar distinto de 1. */
 static inline void msws32_widynski_seed(msws32_widynski_t *rng, uint64_t s) {
     rng->x = 0ULL;
     rng->w = 0ULL;
@@ -140,7 +145,10 @@ static inline uint32_t msws32_widynski_next_bounded(msws32_widynski_t *rng,
 /* ------------------------------------------------------------------ */
 
 /* Inicializa los dos carriles con incrementos de Weyl s1 y s2.
- * x1 = x2 = 0 y w1 = w2 = 0 (estado canonico del articulo). */
+ * x1 = x2 = 0 y w1 = w2 = 0 (estado canonico del articulo).
+ * Aviso: con (s1, s2) = (1, 3) el generador degenera y queda atrapado, igual
+ * que en la implementacion de referencia del autor. Use incrementos impares
+ * distintos de 1. */
 static inline void msws64_widynski_seed(msws64_widynski_t *rng,
                                          uint64_t s1, uint64_t s2) {
     rng->x1 = 0ULL;

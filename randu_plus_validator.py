@@ -700,8 +700,9 @@ eso a escala Crush, y desde luego no la elimina (fmix32 es invertible) ni
 cambia el periodo, que sigue siendo 2^30. Para uso real,
 `mult_xorshift64/` o `hybrid_prng/`. El generador de 64 bits del módulo
 `mult_xorshift64/` **no** es el msws64 de Widynski (2017); ese último vive en
-`codigos-potenciados/msws_widynski/` (verificado bit a bit contra fuentes
-externas).
+`codigos-potenciados/msws_widynski/` (verificado bit a bit contra la
+implementacion de referencia del autor, el crate Rust `msws` para `msws32` y el
+crate Rust `weyl-rs` para la variante mono).
 
 El harness de TestU01 está **versionado** en `codigos-potenciados/testu01/`
 (fuentes y `Makefile`); los binarios `run_randu_plus` y `lattice_recovery` no se
