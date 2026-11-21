@@ -27,3 +27,4 @@ codigos-potenciados/tls-config.env
 # clon anidado analizado en el ciclo 5 (repo propio, no parte de githu)
 /mcp-ecosystem-chiloe/
 /codigos-potenciados/testu01/.testu01_cache.json
+/codigos-potenciados/testu01/.bigcrush*.log
