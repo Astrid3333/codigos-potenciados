@@ -68,9 +68,19 @@
     `mult_xorshift64/{mult_xorshift64.h,mult_xorshift64.c,README.md}`,
     `hybrid_prng/README.md` (afirmación falsa corregida: el msws64 de Widynski
     NO es xorshift 12/25/27 con multiplicador `0x2545F4914F6CDD1D`).
-  - **Pendiente**: ítems 8-9 del ciclo 22 (decidir sobre el clon externo
-    `/home/astrid/codigos-potenciados` y sobre versionar la memoria del repo);
-    commit local y **push solo con pedido explícito**.
+  - **Pendiente**: cierre del **ítem 4** (BigCrush en curso) y **push solo con
+    pedido explícito**.
+  - **Ítem 8 (cerrado)**: `/home/astrid/codigos-potenciados` es un clon limpio
+    del **mismo** repo (mismo origin), parado en `ed74b8d` (push del ciclo 21),
+    **ancestro** del HEAD del workspace y sin trabajo único. Se **actualizó in
+    situ con fast-forward** al HEAD local (`fetch` local + `merge --ff-only`),
+    **sin archivar ni borrar nada**; el commit antiguo sigue en su historial.
+    Verificado: clon limpio y con el mismo contenido trackeado que el workspace.
+    Los `*.key`/`*.crt` del workspace están en `.gitignore`, nunca versionados.
+  - **Ítem 9 (cerrado)**: la memoria del repo (`AGENTS.md`, `KNOWLEDGE.md`,
+    `knowledge/`, `notes/`) **ya está versionada** (`git ls-files` la lista) y
+    se mantiene así: los logs diarios y los hechos actuales viajan en los
+    commits de cada ciclo, junto con el código que los sustenta. Sin cambios.
   - **Ítem 7 (cerrado: `hastings/` documentado y corregido)**:
     - **Procedencia exacta**: los coeficientes de `sin`, `atan`, `exp` y `log1p`
       coinciden numéricamente con el **truncamiento de Taylor** y con los
