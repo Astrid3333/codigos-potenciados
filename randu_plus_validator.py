@@ -908,6 +908,17 @@ def _prov(entry: Dict) -> str:
     return ""
 
 
+def _prov_group(entries: List[Dict]) -> str:
+    """Procedencia de un grupo de mediciones: fecha mas reciente disponible."""
+    fechas = [e.get('measured_at') for e in entries
+              if e.get('measured_at') and e['measured_at'] != 'sin fecha']
+    if not fechas:
+        return " (sin fecha de medicion: dato reutilizado de la cache)"
+    if all(e.get('reused_from_cache') for e in entries):
+        return f" (medido el {max(fechas)}, dato reutilizado de la cache)"
+    return f" (medido el {max(fechas)})"
+
+
 def smallcrush_text(entries: List[Dict]) -> str:
     """Redacta el parrafo de SmallCrush a partir de los datos de la corrida.
 
@@ -921,13 +932,22 @@ def smallcrush_text(entries: List[Dict]) -> str:
     state = [e for e in sc if e['mode'] == 'state']
     partes = []
     if state:
-        e = state[0]
+        peor = max(state, key=lambda e: e['n_failed'])
+        minimo = min(e['n_failed'] for e in state)
+        maximo = max(e['n_failed'] for e in state)
+        if minimo == maximo:
+            rango = (f"fallan {maximo} de las {peor['n_statistics']} "
+                     f"estadisticas en las {len(state)} semillas medidas")
+        else:
+            rango = (f"fallan entre {minimo} y {maximo} de las "
+                     f"{peor['n_statistics']} estadisticas en las {len(state)} "
+                     f"semillas medidas")
+        nombres = sorted({n.split(',')[0] for e in state for n in e['failed']})
         partes.append(
-            f"SmallCrush ({e['n_statistics']} estadisticas) **si detecta** el "
+            f"SmallCrush ({peor['n_statistics']} estadisticas) **si detecta** el "
             f"reticulo cuando recibe el **estado crudo** del LCG: en modo "
-            f"`state` (semilla {e['seed']}) fallan {e['n_failed']} de las "
-            f"{e['n_statistics']} estadisticas ({_fmt_failed(e)})"
-            f"{_prov(e)}.")
+            f"`state` {rango} ({', '.join(nombres[:8])}, ...) con p-value ~0"
+            f"{_prov_group(state)}.")
     if fmix:
         peor = max(fmix, key=lambda e: e['n_failed'])
         n_pasan = sum(1 for e in fmix if not e['failed'])
@@ -936,13 +956,13 @@ def smallcrush_text(entries: List[Dict]) -> str:
                 f"En modo `fmix` (la salida de `randu_plus()`) **pasan todas** "
                 f"las {len(fmix)} semillas medidas ({len(fmix)} de {len(fmix)} "
                 f"sin ninguna estadistica fuera de rango)"
-                f"{_prov(peor)}.")
+                f"{_prov_group(fmix)}.")
         else:
             partes.append(
                 f"En modo `fmix` (la salida de `randu_plus()`) fallan "
                 f"{peor['n_failed']} de las {peor['n_statistics']} estadisticas "
                 f"en la peor semilla ({peor['seed']}: {_fmt_failed(peor)})"
-                f"{_prov(peor)}; {n_pasan} de {len(fmix)} semillas pasan sin "
+                f"{_prov_group(fmix)}; {n_pasan} de {len(fmix)} semillas pasan sin "
                 f"fallos.")
     partes.append(
         "Es decir: `fmix32` borra la estructura *observable* en caja negra a "
@@ -1045,11 +1065,13 @@ def main():
             testu01.append(r)
             print(f"   fmix  seed={seed:>10}: {'PASS' if r['pass'] else 'FAIL'} "
                   f"({r['n_failed']} de {r['n_statistics']} estadisticas fuera de rango)")
-        state = testu01_smallcrush(seeds[0], "state")
-        if state is not None:
-            testu01.append(state)
-            print(f"   state seed={seeds[0]:>10}: {'PASS' if state['pass'] else 'FAIL'} "
-                  f"({state['n_failed']} de {state['n_statistics']} estadisticas fuera de rango)")
+        for seed in seeds:
+            r = testu01_smallcrush(seed, "state")
+            if r is None:
+                continue
+            testu01.append(r)
+            print(f"   state seed={seed:>10}: {'PASS' if r['pass'] else 'FAIL'} "
+                  f"({r['n_failed']} de {r['n_statistics']} estadisticas fuera de rango)")
         if os.environ.get("RANDU_TESTU01_CRUSH") == "1":
             print("\n=== TestU01 Crush (lento: ~30 min por modo) ===")
             for mode in ("fmix", "state"):
@@ -1149,10 +1171,16 @@ def main():
                     when = f"{when} (cache)"
                 f.write(f"| {bat} | {r['mode']} | {r['seed']} | {mark} | "
                         f"{r['n_failed']} de {r['n_statistics']} | {when} |\n")
+            grupos = {}
             for r in [x for x in testu01 if not x['pass'] and x['failed']]:
-                f.write(f"\n- Fallos en `{r.get('battery', 'smallcrush')}` modo "
-                        f"`{r['mode']}`: " + ", ".join(r['failed'][:12]) +
-                        ("..." if len(r['failed']) > 12 else "") + "\n")
+                clave = (r.get('battery', 'smallcrush'), r['mode'],
+                         tuple(r['failed']))
+                grupos.setdefault(clave, []).append(r['seed'])
+            for (bat, modo, failed), semillas in grupos.items():
+                lista = ", ".join(failed[:12]) + ("..." if len(failed) > 12 else "")
+                etiq = (f"semilla {semillas[0]}" if len(semillas) == 1
+                        else f"semillas {', '.join(str(s) for s in semillas)}")
+                f.write(f"\n- Fallos en `{bat}` modo `{modo}` ({etiq}): {lista}\n")
             f.write(f"\nVersion: {testu01[0]['version']}. Harness: "
                     "`codigos-potenciados/testu01/run_randu_plus` (fuentes "
                     "versionadas; el binario se construye con el `Makefile` de "
