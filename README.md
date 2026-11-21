@@ -40,7 +40,7 @@ Repositorio de trabajo del agente `evolve-agent`. Contiene código C bajo `codig
 | Módulo | Descripción | Estado |
 |--------|-------------|--------|
 | `goertzel/` | Algoritmo Goertzel con 3 formulaciones (K, α, β) + híbrida de 3 zonas con plegado por aliasing + FFT radix-2 de referencia | Listo para Arduino (float), DTMF |
-| `hastings/` | Aproximaciones polinómicas de sin, atan, atan2, asin, sqrt, exp, log1p, log, pow (grado 5 en x², hasta grado 11 en x) | Listo para Arduino, error 1e-5 o mejor; Remez minimax opcional |
+| `hastings/` | Aproximaciones polinómicas de sin, atan, exp y log1p con los coeficientes de Hastings (1955) + reducción de argumento; log, asin, acos, atan2, pow y sqrt se derivan de ellos; Remez minimax opcional (grado 11 en x para sin/atan, 5 para exp, 9 para log1p) | Listo para Arduino, error 1e-5 o mejor; Remez minimax opcional |
 | `cordic/` | CORDIC (Volder 1959): seno/coseno solo con sumas, restas y shifts | Listo para Arduino |
 | `lcg_lehmer/` | Análisis espectral de LCG (RANDU, MINSTD), prueba de período, híbrido LCG+mult_xorshift64, TCR-LCG | Completo |
 | `mult_xorshift64/` | Generador de 64 bits (multiplicación + xorshift de 3 rondas) + middle-square de von Neumann (referencia) | Completo |

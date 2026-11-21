@@ -23,13 +23,23 @@
 #endif
 
 /* ========================================================================= */
-/* COEFICIENTES ORIGINALES DE HASTINGS (1955)                                */
+/* COEFICIENTES DE HASTINGS (1955)                                            */
 /*                                                                           */
-/* NOTA: Los coeficientes originales de Hastings se publicaron en tablas     */
-/*       para formulaciones racionales específicas. Aquí se usan             */
-/*       aproximaciones polinómicas de grado 5 basadas en series de Taylor   */
-/*       como punto de partida. El algoritmo de Remez permite refinarlos     */
-/*       para minimizar el error máximo en el intervalo dado.                */
+/* Que es y que no es este bloque:                                           */
+/*   - Para sin, atan, exp y log1p, los juegos de coeficientes que Hastings */
+/*     publico en 1955 coinciden numericamente con el TRUNCAMIENTO DE TAYLOR */
+/*     (1, -1/6, 1/120, ... para sin; 1, -1/3, 1/5, ... para atan; 1, 1/2,  */
+/*     1/6, ... para exp; 1, -1/2, 1/3, ... para log1p). Verificado contra */
+/*     la serie de Taylor con mpmath; ver README.                            */
+/*   - Lo distintivo de Hastings (1955) son las formulaciones RACIONALES      */
+/*     (polinomios A1-A3 y formas racionales B1-B4) para exp, log, log2,    */
+/*     atan2 y asin. Este modulo NO las implementa.                          */
+/*   - El refinamiento minimax por Remez (mas abajo) tampoco es de 1955:     */
+/*     es una aportacion de este repositorio.                                */
+/*                                                                           */
+/* Grados (contados en x, no en x^2): sin y atan usan x*P(x^2) con P de      */
+/* grado 5, o sea grado 11 en x; exp es grado 5 (6 coeficientes); log1p es  */
+/* grado 9 (10 coeficientes).                                                */
 /* ========================================================================= */
 
 static const double hastings_sin_coeffs[] = {
@@ -98,7 +108,7 @@ hastings_result_t hastings_sin(double x) {
     if (x > M_PI / 2.0) { x = M_PI - x; }
 
     double result = x * hastings_eval_poly(hastings_sin_coeffs, 6, x * x);
-    return (hastings_result_t){sign * result, 1.0e-5, 5};
+    return (hastings_result_t){sign * result, 1.0e-5, 11};
 }
 
 hastings_result_t hastings_atan(double x) {
@@ -113,17 +123,17 @@ hastings_result_t hastings_atan(double x) {
     if (x >= 0.5 && x <= 2.0) {
         double t = (x - 1.0) / (x + 1.0);
         double result = M_PI / 4.0 + t * hastings_eval_poly(hastings_atan_coeffs, 6, t * t);
-        return (hastings_result_t){sign * result, 1.0e-5, 5};
+        return (hastings_result_t){sign * result, 1.0e-5, 11};
     }
 
     if (x > 1.0) {
         double inv = 1.0 / x;
         double result = M_PI / 2.0 - inv * hastings_eval_poly(hastings_atan_coeffs, 6, inv * inv);
-        return (hastings_result_t){sign * result, 1.0e-5, 5};
+        return (hastings_result_t){sign * result, 1.0e-5, 11};
     }
 
     double result = x * hastings_eval_poly(hastings_atan_coeffs, 6, x * x);
-    return (hastings_result_t){sign * result, 1.0e-5, 5};
+    return (hastings_result_t){sign * result, 1.0e-5, 11};
 }
 
 hastings_result_t hastings_exp(double x) {
@@ -241,7 +251,12 @@ static const double *poly_coeffs[] = {
     hastings_exp_coeffs,
     hastings_log1p_coeffs
 };
-static const int   poly_degrees[] = {5, 5, 5, 9};
+static const int   poly_ncoeffs[] = {
+    (int)(sizeof hastings_sin_coeffs   / sizeof hastings_sin_coeffs[0]),
+    (int)(sizeof hastings_atan_coeffs  / sizeof hastings_atan_coeffs[0]),
+    (int)(sizeof hastings_exp_coeffs   / sizeof hastings_exp_coeffs[0]),
+    (int)(sizeof hastings_log1p_coeffs / sizeof hastings_log1p_coeffs[0])
+};
 static const double poly_ranges[][2] = {
     {0.0, M_PI / 2.0},
     {0.0, 1.0},
@@ -255,7 +270,7 @@ const hastings_poly_t *hastings_get_poly(const char *name) {
     if (!initialized) {
         for (int i = 0; i < 4; i++) {
             polys[i].coeffs = poly_coeffs[i];
-            polys[i].n = poly_degrees[i];
+            polys[i].n = poly_ncoeffs[i];
             polys[i].range_min = poly_ranges[i][0];
             polys[i].range_max = poly_ranges[i][1];
         }
@@ -267,11 +282,13 @@ const hastings_poly_t *hastings_get_poly(const char *name) {
 }
 
 const hastings_info_t *hastings_info(const char *name) {
+    /* degree = grado del polinomio en x. Para sin y atan el polinomio es
+     * x*P(x^2) con P de grado 5, es decir grado 11 en x. */
     static hastings_info_t infos[4] = {
-        {"sin",  5, 1.0e-5,  1.0e-5,  0.0,          M_PI / 2.0},
-        {"atan", 5, 1.0e-5,  1.0e-5,  0.0,          1.0},
-        {"exp",  5, 1.0e-5,  1.0e-5,  0.0,          1.0},
-        {"log1p",9, 1.0e-5,  1.0e-5,  0.0,          1.0}
+        {"sin",  11, 1.0e-5,  1.0e-5,  0.0,          M_PI / 2.0},
+        {"atan", 11, 1.0e-5,  1.0e-5,  0.0,          1.0},
+        {"exp",  5,  1.0e-5,  1.0e-5,  0.0,          1.0},
+        {"log1p",9,  1.0e-5,  1.0e-5,  0.0,          1.0}
     };
     static const char *names[] = {"sin", "atan", "exp", "log1p"};
     for (int i = 0; i < 4; i++)

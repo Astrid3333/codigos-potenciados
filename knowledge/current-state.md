@@ -68,9 +68,39 @@
     `mult_xorshift64/{mult_xorshift64.h,mult_xorshift64.c,README.md}`,
     `hybrid_prng/README.md` (afirmación falsa corregida: el msws64 de Widynski
     NO es xorshift 12/25/27 con multiplicador `0x2545F4914F6CDD1D`).
-  - **Pendiente**: ítems 7-9 del ciclo 22 (renombrar/documentar `hastings/`,
-    decidir sobre el clon externo y sobre versionar la memoria del repo);
+  - **Pendiente**: ítems 8-9 del ciclo 22 (decidir sobre el clon externo
+    `/home/astrid/codigos-potenciados` y sobre versionar la memoria del repo);
     commit local y **push solo con pedido explícito**.
+  - **Ítem 7 (cerrado: `hastings/` documentado y corregido)**:
+    - **Procedencia exacta**: los coeficientes de `sin`, `atan`, `exp` y `log1p`
+      coinciden numéricamente con el **truncamiento de Taylor** y con los
+      juegos publicados por Hastings et al. (1955) para esas cuatro funciones.
+      Las **formulaciones racionales A1-A3/B1-B4 de Hastings 1955 NO están
+      implementadas**; el refinamiento minimax por Remez es **aportación de
+      este repositorio** (no de 1955). El nombre del módulo se conserva
+      (remitir a la fuente citada) con la precisión en el README.
+    - **Grados reales (medidos y corregidos)**: `sin`/`atan` = `x·P₅(x²)` ⇒
+      **grado 11 en x** (6 coeficientes); `exp` = **grado 5** (6 coeficientes);
+      `log1p` = **grado 9** (10 coeficientes). Antes el README y el test
+      declaraban 6 y 10 para `exp`/`log1p` (un grado de más).
+    - **Bug de metadatos corregido**: `hastings_get_poly()` asignaba
+      `n = poly_degrees[] = {5,5,5,9}` cuando `n` está documentado como
+      **número de coeficientes** ⇒ off-by-one. Ahora `n` es el conteo real
+      (6,6,6,10) y `hastings_info()->degree` / `hastings_result_t.degree`
+      declaran el grado en x (11,11,5,9). Test de regresión añadido
+      (`test_metadatos`).
+    - **Comparación corregida (like-for-like)**: el módulo es un polinomio
+      **más** reducción de argumento y elevaciones al cuadrado; Remez es un
+      polinomio simple. La tabla anterior comparaba cosas distintas. Ahora se
+      compara **Remez(d) contra Taylor plano del mismo grado d** (el minimax
+      es óptimo ⇒ no puede ser peor) y el error del módulo se informa aparte.
+      Medido (4001 puntos): sin [0,π/2] d=11 → Taylor 5.63e-08, Remez
+      3.99e-14, módulo 5.63e-08; atan [0,1] d=11 → Taylor 4.14e-02, Remez
+      1.71e-09, módulo 7.63e-06; exp [0,1] d=5 → Taylor 1.62e-03, Remez
+      1.13e-06, módulo 1.06e-07; log1p [0,1] d=9 → Taylor 5.25e-02, Remez
+      4.58e-09, módulo 2.86e-06. Remez gana a Taylor entre 1.4e3x y 2.4e7x;
+      frente al módulo completo gana en sin/atan/log1p y pierde en exp (~9x),
+      donde la reducción con `ln2` y el cuadrado valen más. Test: **44/44**.
   - **Ítem 3 (cerrado)**: SmallCrush (TestU01 1.2.3) en modo `state` (estado
     crudo del LCG) falla **14 de 15** estadísticas en **las 8 semillas**
     (12345, 1, 3, 7, 4242, 65537, 99991, 2147483647), con la **misma** lista:

@@ -1,8 +1,26 @@
-# hastings - Polinomios de Hastings (1955) con refinamiento por Remez
+# hastings - Polinomios con los coeficientes de Hastings (1955) + Remez
 
-Implementa aproximaciones polinómicas de funciones trascendentales basadas
-en las tablas de Hastings et al. (1955), con refinamiento opcional mediante
-el algoritmo de intercambio de Remez para minimizar el error máximo.
+Implementa aproximaciones polinómicas de funciones trascendentales usando
+los juegos de coeficientes publicados por Hastings et al. (1955), con
+refinamiento opcional mediante el algoritmo de intercambio de Remez para
+minimizar el error máximo.
+
+## Qué es de Hastings (1955) y qué no
+
+Conviene ser preciso, porque el nombre del módulo sugiere más de lo que
+implementa:
+
+| Pieza | Procedencia | Estado en este módulo |
+|-------|-------------|------------------------|
+| Coeficientes de `sin`, `atan`, `exp`, `log1p` | Hastings et al. (1955) | **Sí**. Para estas cuatro funciones esos valores coinciden numéricamente con el truncamiento de Taylor (verificado contra la serie con `mpmath`): `1, −1/6, 1/120, …` para `sin`; `1, −1/3, 1/5, …` para `atan`; `1, 1/2, 1/6, …` para `exp`; `1, −1/2, 1/3, …` para `log1p`. |
+| Formulaciones racionales A1-A3 y B1-B4 (exp, log, log2, atan2, asin) | Hastings et al. (1955) | **No**. No están implementadas. |
+| Refinamiento minimax por Remez | Remez (1934), aportación de este repositorio | **Sí**, pero no es de 1955. |
+| Reducción de argumento y elevaciones al cuadrado | Hastings et al. (1955) | **Sí**, de forma simplificada: reducción a un intervalo pequeño y `p(r)` repetidas al cuadrado en lugar de un argumento fraccionario (`ln2`/`π`). |
+
+Lo que sigue siendo cierto: los **números** de la tabla de Hastings para
+estas cuatro funciones son los que usa el módulo, y coinciden con el
+truncamiento de Taylor. Lo que **no** es cierto es que este módulo implemente
+las approximaciones racionales que hacen famoso a Hastings 1955.
 
 ## Estructura
 
@@ -14,14 +32,26 @@ el algoritmo de intercambio de Remez para minimizar el error máximo.
 | `Makefile` | Compilación |
 | `README.md` | Este archivo |
 
+### Funciones derivadas
+
+`hastings_log`, `hastings_asin`, `hastings_acos`, `hastings_atan2`,
+`hastings_pow` y `hastings_sqrt` se construyen a partir de los cuatro
+polinomios anteriores; no tienen tabla de coeficientes propia. `hastings_sqrt`
+delega en `sqrt` de libm.
+
 ## Formulaciones incluidas
 
-| Función | Rango | Polinomio | Error absoluto medido |
-|---------|-------|-----------|----------------------|
-| `sin(x)` | [0, 2π] (reducido a [0, π/2]) | x·P₅(x²) | 5.6e-08 |
-| `atan(x)` | [0.05, 4] | x·P₅(x²) | 7.7e-06 |
-| `exp(x)` | [-5, 5] | 1 + x·P₅(x) | 8.3e-06 relativo |
-| `log1p(x)` | [0, 1] | x·P₉(x) | 2.9e-06 |
+| Función | Rango | Polinomio | Nº de coeficientes | Error absoluto medido |
+|---------|-------|-----------|--------------------|----------------------|
+| `sin(x)` | [0, 2π] (reducido a [0, π/2]) | x·P₅(x²) | 6 | 5.6e-08 |
+| `atan(x)` | [0.05, 4] | x·P₅(x²) | 6 | 7.6e-06 |
+| `exp(x)` | [-5, 5] | 1 + x·P₅(x) | 6 | 1.1e-07 (3.9e-08 relativo) |
+| `log1p(x)` | [0, 1] | x·P₉(x) | 10 | 2.9e-06 |
+
+Los grados contados **en x** son: 11 para `sin` y `atan` (porque el polinomio
+es `x·P(x²)` con `P` de grado 5), 5 para `exp` y 9 para `log1p`. Eso es lo que
+declaran `hastings_info()->degree`, `hastings_result_t.degree` y
+`hastings_get_poly()->n` (= número de coeficientes: 6, 6, 6, 10).
 
 Las reducciones de argumento son:
 
@@ -58,12 +88,16 @@ Salida esperada (ejemplo):
   [OK] sin en puntos clave (incluye 2pi/3 y 3pi/2) <= 1e-6  error max = 5.626e-08
   [OK] sin es impar en [0,2pi] <= 1e-6  |sin(-x)+sin(x)| max = 0.000e+00
 
+=== Metadatos de los polinomios ===
+  [OK] hastings_get_poly declara el numero de coeficientes  sin: n=6 (esperado 6), grado=11 (esperado 11)
+  [OK] hastings_info declara el grado en x  sin: n=6 (esperado 6), grado=11 (esperado 11)
+
 === Remez (minimax) ===
   [OK] Remez(grado 5) mejora a Taylor(grado 5)  sin: Remez(5) = 7.071e-06, Taylor(5) = 4.525e-03
-  [OK] Remez(grado equivalente) no es peor que Hastings  sin: Remez(11) = 3.994e-14, Hastings = 5.626e-08
+  [OK] Remez(grado real) no es peor que Taylor del mismo grado  sin: Remez(11) = 3.994e-14, Taylor(11) = 5.626e-08, modulo con reduccion = 5.626e-08
 
 =================================================================
-  33/33 pruebas pasaron
+  44/44 pruebas pasaron
 =================================================================
 ```
 
@@ -87,30 +121,53 @@ de grado n en el sentido del máximo error absoluto.
 ### Ojo con los grados
 
 El polinomio de Hastings para `sin` y `atan` tiene la forma `x·P(x²)` con
-P de grado 5, es decir **grado 11 en x**. Para `exp` es grado 6 y para
-`log1p` grado 10. Un Remez de grado 5 no puede mejorar a esos polinomios
-(para `sin` en [0, π/2] el minimax de grado 5 da 7.1e-06 frente a los
-5.6e-08 de Hastings): la comparación justa usa el grado equivalente.
+P de grado 5, es decir **grado 11 en x**. Para `exp` es **grado 5** (6
+coeficientes) y para `log1p` **grado 9** (10 coeficientes). Un Remez de grado
+5 no puede mejorar a esos polinomios: para `sin` en [0, π/2] el minimax de
+grado 5 da 7.1e-06 frente a los 5.6e-08 del polinomio del módulo.
 
-Grados equivalentes: 11 para `sin` y `atan`, 6 para `exp`, 10 para `log1p`.
+Grados reales: **11** para `sin` y `atan`, **5** para `exp`, **9** para `log1p`.
 
-| Función | Hastings | Remez (grado equivalente) | Mejora |
-|---------|----------|---------------------------|--------|
-| `sin` [0, π/2] | 5.63e-08 | 3.99e-14 | 1.4e6x |
-| `atan` [0, 1] | 7.63e-06 | 1.71e-09 | 4.5e3x |
-| `exp` [0, 1] | 3.89e-08 | 4.03e-08 | 0.97x |
-| `log1p` [0, 1] | 2.86e-06 | 7.09e-10 | 4.0e3x |
+### Comparación justa: Remez(d) contra Taylor(d)
 
-Para `exp` el Remez queda apenas por detrás: el sistema en base monomial con
-puntos de Vandermonde pierde precisión numérica en ese intervalo, y el
-error medido ronda 1e-08.
+El módulo usa un polinomio **más** una reducción de argumento (y elevaciones
+al cuadrado), mientras que Remez devuelve un polinomio simple. Comparar un
+polinomio simple contra una fórmula compuesta mezcla dos cosas distintas, así
+que la comparación como es debido es:
+
+- **Remez(d)** frente al **Taylor plano del mismo grado d** (el minimax es el
+  mejor polinomio de grado d, así que no puede ser peor), y
+- el **error del módulo** se informa aparte, como dato propio.
+
+Medido con 4001 puntos por intervalo (mismo muestreo para las tres columnas):
+
+| Función | Intervalo | Grado d | Taylor plano(d) | Remez(d) | Módulo (polinomio + reducción) |
+|---------|-----------|---------|-----------------|----------|--------------------------------|
+| `sin` | [0, π/2] | 11 | 5.63e-08 | **3.99e-14** | 5.63e-08 |
+| `atan` | [0, 1] | 11 | 4.14e-02 | **1.71e-09** | 7.63e-06 |
+| `exp` | [0, 1] | 5 | 1.62e-03 | 1.13e-06 | **1.06e-07** |
+| `log1p` | [0, 1] | 9 | 5.25e-02 | **4.58e-09** | 2.86e-06 |
+
+(Para `exp`, el error relativo del módulo es 3.89e-08; el resto de la tabla
+va en error absoluto.)
+
+Lecturas:
+
+- Remez gana a Taylor plano del mismo grado entre **1.4e3x** (`exp`) y
+  **2.4e7x** (`atan`).
+- Frente al módulo completo, Remez es mejor en `sin` (1.4e6x), `atan`
+  (4.5e3x) y `log1p` (6.3e2x), y peor en `exp` (~9x): ahí la reducción de
+  argumento con `ln2` y las elevaciones al cuadrado del módulo valen más que
+  cualquier cambio de polinomio.
+- El módulo usa los coeficientes de Hastings (1955); Remez es la aportación
+  minimax de este repositorio. No son el mismo objeto y la tabla los separa.
 
 ## Uso directo
 
 ```c
 #include "hastings.h"
 
-// Formulaciones originales de Hastings (1955)
+// Polinomios con los coeficientes de Hastings (1955) + reducción de argumento
 double y = hastings_sin(0.5).value;
 double y = hastings_atan(0.5).value;
 double y = hastings_exp(0.5).value;
@@ -121,7 +178,7 @@ remez_params_t rp = {0};
 rp.f = sin;
 rp.a = 0.0;
 rp.b = M_PI/2.0;
-rp.degree = 11;         // grado equivalente al polinomio de Hastings
+rp.degree = 11;         // grado real del polinomio del módulo, en x
 rp.max_iterations = 100;
 rp.tolerance = 1e-14;
 remez_solve(&rp);

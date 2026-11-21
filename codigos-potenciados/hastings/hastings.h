@@ -2,18 +2,24 @@
  *
  * Define los tipos de datos y declara las funciones para las aproximaciones
  * polinómicas de funciones elementales (sin, atan, exp, log1p) usando:
- *   - Coeficientes originales de Hastings (grado 5)
- *   - Refinamiento mediante algoritmo de intercambio de Remez
+ *   - Los juegos de coeficientes publicados por Hastings (1955). Para estas
+ *     cuatro funciones esos valores coinciden numéricamente con el
+ *     truncamiento de Taylor; lo distintivo de Hastings 1955 son las
+ *     formulaciones racionales (A1-A3, B1-B4) que este módulo NO implementa.
+ *   - Refinamiento mediante algoritmo de intercambio de Remez (aportación de
+ *     este repositorio, no de 1955) para minimizar el error máximo.
  *
  * Ojo con los grados: el polinomio de Hastings para sin y atan tiene la forma
- * x*P(x^2) con P de grado 5, es decir grado 11 en x. Para comparar con
- * Remez hay que usar el grado equivalente (11 para sin y atan, 6 para exp,
- * 10 para log1p); un Remez de grado 5 no puede mejorar al de Hastings.
+ * x*P(x^2) con P de grado 5, es decir grado 11 en x. Para exp es grado 5
+ * (6 coeficientes) y para log1p grado 9 (10 coeficientes). Para comparar con
+ * Remez hay que usar el grado equivalente (11 para sin y atan, 5 para exp,
+ * 9 para log1p); un Remez de grado 5 no puede mejorar al de sin y atan.
  *
  * Cada función retornable devuelve hastings_result_t con:
  *   value   - valor aproximado
  *   error   - cota de error declarada para el polinomio usado
- *   degree  - grado del polinomio usado
+ *   degree  - grado del polinomio en x (11 para sin y atan, 5 para exp,
+ *              9 para log1p)
  */
 
 #ifndef HASTINGS_H
@@ -37,7 +43,6 @@ typedef struct {
     double        range_min; /* extremo inferior del intervalo de validez */
     double        range_max; /* extremo superior del intervalo de validez */
 } hastings_poly_t;
-
 /* ---------- Información de una formulación ----------------------------- */
 
 typedef struct {

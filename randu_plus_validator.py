@@ -698,6 +698,11 @@ allá; lo que mide esta corrida es lo siguiente:
 
 {crush_text}
 
+La batería **BigCrush** (414 estadísticas) es la más larga de TestU01 y tarda
+varias horas por modo:
+
+{bigcrush_text}
+
 El harness de TestU01 está **versionado** en `codigos-potenciados/testu01/`
 (fuentes y `Makefile`); los binarios `run_randu_plus` y `lattice_recovery` no se
 versionan y se construyen con
@@ -975,6 +980,28 @@ def testu01_digest(gen: str, mode: str, seed: int,
     return entry
 
 
+def bigcrush_text(entries: List[Dict]) -> str:
+    """Redacta el parrafo de BigCrush a partir de los datos de la corrida.
+
+    BigCrush es la bateria mas larga de TestU01 (unas horas por modo), asi que
+    casi siempre se ejecuta aparte y se reutiliza desde la cache."""
+    bc = [e for e in entries if e.get('battery') == 'bigcrush']
+    if not bc:
+        return ("La bateria **BigCrush** (414 estadisticas) **no se ejecuto en "
+                "esta corrida**: este informe no afirma ningun resultado de "
+                "BigCrush. Para incluirla hay que correr el validador con "
+                "`RANDU_TESTU01_BIGCRUSH=1` (varias horas por modo y semilla).")
+    partes = []
+    for e in sorted(bc, key=lambda x: x['mode']):
+        marca = "pasan todas" if not e['failed'] else "fallan"
+        partes.append(
+            f"modo `{e['mode']}` (semilla {e['seed']}): {marca} "
+            f"{e['n_failed']} de {e['n_statistics']} estadisticas"
+            + (f" ({_fmt_failed(e)})" if e['failed'] else "")
+            + f"{_prov(e)}.")
+    return " ".join(partes)
+
+
 def _fmt_failed(entry: Dict, limit: int = 6) -> str:
     failed = entry.get('failed') or []
     shown = ", ".join(failed[:limit])
@@ -1163,6 +1190,15 @@ def main():
             print("\n=== TestU01 Crush (lento: ~30 min por modo) ===")
             for mode in ("fmix", "state"):
                 r = testu01_battery("crush", seeds[0], mode, timeout=3600)
+                if r is None:
+                    continue
+                testu01.append(r)
+                print(f"   {mode:5s} seed={seeds[0]:>10}: {'PASS' if r['pass'] else 'FAIL'} "
+                      f"({r['n_failed']} de {r['n_statistics']} estadisticas fuera de rango)")
+        if os.environ.get("RANDU_TESTU01_BIGCRUSH") == "1":
+            print("\n=== TestU01 BigCrush (muy lento: varias horas por modo) ===")
+            for mode in ("fmix", "state"):
+                r = testu01_battery("bigcrush", seeds[0], mode, timeout=43200)
                 if r is None:
                     continue
                 testu01.append(r)
@@ -1426,7 +1462,8 @@ def main():
             seeds=", ".join(str(s) for s in xcheck['checked_seeds']),
             stat_seeds=", ".join(str(s) for s in seeds),
             smallcrush_text=smallcrush_text(testu01),
-            crush_text=crush_text(testu01)))
+            crush_text=crush_text(testu01),
+            bigcrush_text=bigcrush_text(testu01)))
 
     print("\nReporte guardado en VALIDATION_REPORT.md")
 
