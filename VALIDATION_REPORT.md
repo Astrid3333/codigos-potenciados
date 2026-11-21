@@ -4,8 +4,8 @@
 
 **Semillas:** 12345, 1, 3, 7, 4242, 65537, 99991, 2147483647 (8 semillas impares distintas)
 **Muestra por semilla:** 1000000 uint32 (4.0 MB)
-**Fecha:** Fri Nov 20 10:28:38 PM -03 2026
-**Git commit:** eb894b508c55be21a1e04d65e40f0c38a6881ed9
+**Fecha:** Sat Nov 21 01:03:56 AM -03 2026
+**Git commit:** 091e200ccd09560cbaaebb18ae3eb5f7bf7bb090
 
 ## Resultados (peor caso entre semillas)
 
@@ -50,19 +50,25 @@
 
 ## TestU01 (harness local)
 
-| bateria | modo | semilla | resultado | estadisticas fuera de rango |
-|---------|------|---------|-----------|------------------------------|
-| smallcrush | fmix | 12345 | ✅ pasan todas | 0 de 15 |
-| smallcrush | fmix | 1 | ✅ pasan todas | 0 de 15 |
-| smallcrush | fmix | 3 | ✅ pasan todas | 0 de 15 |
-| smallcrush | fmix | 7 | ✅ pasan todas | 0 de 15 |
-| smallcrush | fmix | 4242 | ✅ pasan todas | 0 de 15 |
-| smallcrush | fmix | 65537 | ✅ pasan todas | 0 de 15 |
-| smallcrush | fmix | 99991 | ✅ pasan todas | 0 de 15 |
-| smallcrush | fmix | 2147483647 | ✅ pasan todas | 0 de 15 |
-| smallcrush | state | 12345 | ❌ falla | 14 de 15 |
+| bateria | modo | semilla | resultado | estadisticas fuera de rango | medido |
+|---------|------|---------|-----------|------------------------------|--------|
+| smallcrush | fmix | 12345 | ✅ pasan todas | 0 de 15 | sin fecha (cache) |
+| smallcrush | fmix | 1 | ✅ pasan todas | 0 de 15 | sin fecha (cache) |
+| smallcrush | fmix | 3 | ✅ pasan todas | 0 de 15 | sin fecha (cache) |
+| smallcrush | fmix | 7 | ✅ pasan todas | 0 de 15 | sin fecha (cache) |
+| smallcrush | fmix | 4242 | ✅ pasan todas | 0 de 15 | sin fecha (cache) |
+| smallcrush | fmix | 65537 | ✅ pasan todas | 0 de 15 | sin fecha (cache) |
+| smallcrush | fmix | 99991 | ✅ pasan todas | 0 de 15 | sin fecha (cache) |
+| smallcrush | fmix | 2147483647 | ✅ pasan todas | 0 de 15 | sin fecha (cache) |
+| smallcrush | state | 12345 | ❌ falla | 14 de 15 | sin fecha (cache) |
+| crush | fmix | 12345 | ❌ falla | 6 de 144 | sin fecha (cache) |
+| crush | state | 12345 | ❌ falla | 131 de 144 | sin fecha (cache) |
 
 - Fallos en `smallcrush` modo `state`: BirthdaySpacings, Collision, Gap, SimpPoker, CouponCollector, MaxOft, WeightDistrib, MatrixRank, HammingIndep, RandomWalk1 H, RandomWalk1 M, RandomWalk1 J...
+
+- Fallos en `crush` modo `fmix`: Gap, r = 0, Gap, r = 22, MaxOft, t = 5, MaxOft, t = 10, MaxOft, t = 20, MaxOft, t = 30
+
+- Fallos en `crush` modo `state`: SerialOver, t = 2, SerialOver, t = 4, CollisionOver, t = 2, CollisionOver, t = 2, CollisionOver, t = 4, CollisionOver, t = 4, CollisionOver, t = 8, CollisionOver, t = 8, CollisionOver, t = 20, CollisionOver, t = 20, BirthdaySpacings, t = 2, BirthdaySpacings, t = 3...
 
 Version: TestU01 1.2.3. Harness: `codigos-potenciados/testu01/run_randu_plus` (fuentes versionadas; el binario se construye con el `Makefile` de ese directorio).
 
@@ -133,22 +139,12 @@ caja negra, pero la estructura se recupera desde la propia salida.
 
 ### Lo que aporta la batería de TestU01
 
-SmallCrush (15 estadísticas) **sí detecta** el retículo cuando recibe el
-**estado crudo** del LCG: en modo `state` fallan 14 de las 15 estadísticas con
-p-value ~0. En modo `fmix` (la salida de `randu_plus()`) **pasan las 15** en
-las 8 semillas medidas.
+SmallCrush (15 estadisticas) **si detecta** el reticulo cuando recibe el **estado crudo** del LCG: en modo `state` (semilla 12345) fallan 14 de las 15 estadisticas (BirthdaySpacings, Collision, Gap, SimpPoker, CouponCollector, MaxOft, ...) (dato reutilizado de la cache, sin fecha de medicion). En modo `fmix` (la salida de `randu_plus()`) **pasan todas** las 8 semillas medidas (8 de 8 sin ninguna estadistica fuera de rango) (dato reutilizado de la cache, sin fecha de medicion). Es decir: `fmix32` borra la estructura *observable* en caja negra a escala SmallCrush, pero no la elimina (fmix32 es invertible) y el periodo sigue siendo 2^30. Para uso real, `mult_xorshift64/` o `hybrid_prng/`.
 
 La batería **Crush** (144 estadísticas, 10 veces más que SmallCrush) va más
-allá: la salida mezclada **sí falla** (Gap y MaxOft fuera de rango), mientras
-que el estado crudo falla de forma masiva. Es decir: `fmix32` borra la
-estructura *observable* en caja negra a escala SmallCrush, pero ni siquiera
-eso a escala Crush, y desde luego no la elimina (fmix32 es invertible) ni
-cambia el periodo, que sigue siendo 2^30. Para uso real,
-`mult_xorshift64/` o `hybrid_prng/`. El generador de 64 bits del módulo
-`mult_xorshift64/` **no** es el msws64 de Widynski (2017); ese último vive en
-`codigos-potenciados/msws_widynski/` (verificado bit a bit contra la
-implementación de referencia del autor, el crate Rust `msws` para `msws32` y el
-crate Rust `weyl-rs` para la variante mono).
+allá; lo que mide esta corrida es lo siguiente:
+
+modo `fmix` (semilla 12345): fallan 6 de 144 estadisticas (Gap, r = 0, Gap, r = 22, MaxOft, t = 5, MaxOft, t = 10, MaxOft, t = 20, MaxOft, t = 30) (dato reutilizado de la cache, sin fecha de medicion). modo `state` (semilla 12345): fallan 131 de 144 estadisticas (SerialOver, t = 2, SerialOver, t = 4, CollisionOver, t = 2, CollisionOver, t = 2, CollisionOver, t = 4, CollisionOver, t = 4, ...) (dato reutilizado de la cache, sin fecha de medicion). Es decir: la salida mezclada **tambien falla** a escala Crush (6 de 144), aunque mucho menos que el estado crudo (131 de 144); `fmix32` oculta el reticulo en caja negra a escala SmallCrush, no a escala Crush, y desde luego no lo elimina ni cambia el periodo (2^30).
 
 El harness de TestU01 está **versionado** en `codigos-potenciados/testu01/`
 (fuentes y `Makefile`); los binarios `run_randu_plus` y `lattice_recovery` no se

@@ -21,6 +21,7 @@ import os
 import tempfile
 import hashlib
 import re
+import time
 from collections import Counter
 from typing import List, Tuple, Dict
 
@@ -687,22 +688,12 @@ caja negra, pero la estructura se recupera desde la propia salida.
 
 ### Lo que aporta la batería de TestU01
 
-SmallCrush (15 estadísticas) **sí detecta** el retículo cuando recibe el
-**estado crudo** del LCG: en modo `state` fallan 14 de las 15 estadísticas con
-p-value ~0. En modo `fmix` (la salida de `randu_plus()`) **pasan las 15** en
-las {n_seeds} semillas medidas.
+{smallcrush_text}
 
 La batería **Crush** (144 estadísticas, 10 veces más que SmallCrush) va más
-allá: la salida mezclada **sí falla** (Gap y MaxOft fuera de rango), mientras
-que el estado crudo falla de forma masiva. Es decir: `fmix32` borra la
-estructura *observable* en caja negra a escala SmallCrush, pero ni siquiera
-eso a escala Crush, y desde luego no la elimina (fmix32 es invertible) ni
-cambia el periodo, que sigue siendo 2^30. Para uso real,
-`mult_xorshift64/` o `hybrid_prng/`. El generador de 64 bits del módulo
-`mult_xorshift64/` **no** es el msws64 de Widynski (2017); ese último vive en
-`codigos-potenciados/msws_widynski/` (verificado bit a bit contra la
-implementacion de referencia del autor, el crate Rust `msws` para `msws32` y el
-crate Rust `weyl-rs` para la variante mono).
+allá; lo que mide esta corrida es lo siguiente:
+
+{crush_text}
 
 El harness de TestU01 está **versionado** en `codigos-potenciados/testu01/`
 (fuentes y `Makefile`); los binarios `run_randu_plus` y `lattice_recovery` no se
@@ -859,7 +850,10 @@ def testu01_battery(battery: str, seed: int, mode: str = "fmix",
     key = f"{battery}|{mode}|{seed}"
     cache = testu01_cache_load()
     if os.environ.get("RANDU_TESTU01_REUSE") == "1" and key in cache:
-        return cache[key]
+        reused = dict(cache[key])
+        reused['reused_from_cache'] = True
+        reused.setdefault('measured_at', 'sin fecha')
+        return reused
     proc = subprocess.run([TESTU01_BIN, battery, mode, str(seed)],
                           capture_output=True, text=True, timeout=timeout)
     out = proc.stdout
@@ -881,6 +875,8 @@ def testu01_battery(battery: str, seed: int, mode: str = "fmix",
         "failed": failed,
         "version": vm.group(1) if vm else "TestU01",
         "n_statistics": int(sm.group(1)) if sm else 0,
+        "measured_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "reused_from_cache": False,
     }
     testu01_cache_store(entry)
     return entry
@@ -890,6 +886,111 @@ def testu01_smallcrush(seed: int, mode: str = "fmix",
                        timeout: int = 900) -> Dict:
     """Atajo historico: SmallCrush sobre randu_plus."""
     return testu01_battery("smallcrush", seed, mode, timeout)
+
+
+def _fmt_failed(entry: Dict, limit: int = 6) -> str:
+    failed = entry.get('failed') or []
+    shown = ", ".join(failed[:limit])
+    if len(failed) > limit:
+        shown += ", ..."
+    return shown
+
+
+def _prov(entry: Dict) -> str:
+    """Procedencia de una medicion: fecha y si vino de la cache."""
+    fecha = entry.get('measured_at')
+    if entry.get('reused_from_cache'):
+        if fecha and fecha != 'sin fecha':
+            return f" (medido el {fecha}, dato reutilizado de la cache)"
+        return " (dato reutilizado de la cache, sin fecha de medicion)"
+    if fecha:
+        return f" (medido el {fecha})"
+    return ""
+
+
+def smallcrush_text(entries: List[Dict]) -> str:
+    """Redacta el parrafo de SmallCrush a partir de los datos de la corrida.
+
+    Si el harness no esta disponible, lo dice en vez de afirmar un resultado."""
+    sc = [e for e in entries if e.get('battery', 'smallcrush') == 'smallcrush']
+    if not sc:
+        return ("SmallCrush (15 estadisticas) **no se ejecuto** en esta corrida: "
+                "el harness `run_randu_plus` no estaba disponible, asi que no "
+                "hay ningun resultado que reportar.")
+    fmix = [e for e in sc if e['mode'] == 'fmix']
+    state = [e for e in sc if e['mode'] == 'state']
+    partes = []
+    if state:
+        e = state[0]
+        partes.append(
+            f"SmallCrush ({e['n_statistics']} estadisticas) **si detecta** el "
+            f"reticulo cuando recibe el **estado crudo** del LCG: en modo "
+            f"`state` (semilla {e['seed']}) fallan {e['n_failed']} de las "
+            f"{e['n_statistics']} estadisticas ({_fmt_failed(e)})"
+            f"{_prov(e)}.")
+    if fmix:
+        peor = max(fmix, key=lambda e: e['n_failed'])
+        n_pasan = sum(1 for e in fmix if not e['failed'])
+        if n_pasan == len(fmix):
+            partes.append(
+                f"En modo `fmix` (la salida de `randu_plus()`) **pasan todas** "
+                f"las {len(fmix)} semillas medidas ({len(fmix)} de {len(fmix)} "
+                f"sin ninguna estadistica fuera de rango)"
+                f"{_prov(peor)}.")
+        else:
+            partes.append(
+                f"En modo `fmix` (la salida de `randu_plus()`) fallan "
+                f"{peor['n_failed']} de las {peor['n_statistics']} estadisticas "
+                f"en la peor semilla ({peor['seed']}: {_fmt_failed(peor)})"
+                f"{_prov(peor)}; {n_pasan} de {len(fmix)} semillas pasan sin "
+                f"fallos.")
+    partes.append(
+        "Es decir: `fmix32` borra la estructura *observable* en caja negra a "
+        "escala SmallCrush, pero no la elimina (fmix32 es invertible) y el "
+        "periodo sigue siendo 2^30. Para uso real, `mult_xorshift64/` o "
+        "`hybrid_prng/`.")
+    return " ".join(partes)
+
+
+def crush_text(entries: List[Dict]) -> str:
+    """Redacta el parrafo de Crush a partir de los datos de la corrida.
+
+    Si la bateria Crush no se ejecuto, lo dice explicitamente en vez de
+    repetir cifras medidas en otra corrida."""
+    cr = [e for e in entries if e.get('battery') == 'crush']
+    if not cr:
+        return ("La bateria **Crush** (144 estadisticas) **no se ejecuto en esta "
+                "corrida**: la tabla de arriba solo contiene SmallCrush, asi que "
+                "este informe no afirma ningun resultado de Crush. Para "
+                "incluirla hay que correr el validador con "
+                "`RANDU_TESTU01_CRUSH=1` (~30 min por modo y semilla).")
+    partes = []
+    for e in sorted(cr, key=lambda x: x['mode']):
+        marca = "pasan todas" if not e['failed'] else "fallan"
+        partes.append(
+            f"modo `{e['mode']}` (semilla {e['seed']}): {marca} "
+            f"{e['n_failed']} de {e['n_statistics']} estadisticas"
+            + (f" ({_fmt_failed(e)})" if e['failed'] else "")
+            + f"{_prov(e)}.")
+    fmix = [e for e in cr if e['mode'] == 'fmix']
+    state = [e for e in cr if e['mode'] == 'state']
+    if fmix and state:
+        if fmix[0]['failed']:
+            partes.append(
+                "Es decir: la salida mezclada **tambien falla** a escala Crush "
+                f"({fmix[0]['n_failed']} de {fmix[0]['n_statistics']}), aunque "
+                f"mucho menos que el estado crudo ({state[0]['n_failed']} de "
+                f"{state[0]['n_statistics']}); `fmix32` oculta el reticulo en "
+                "caja negra a escala SmallCrush, no a escala Crush, y desde "
+                "luego no lo elimina ni cambia el periodo (2^30).")
+        else:
+            partes.append(
+                "Es decir: la salida mezclada pasa Crush en esta corrida "
+                f"({state[0]['n_failed']} de {state[0]['n_statistics']} "
+                "estadisticas fuera de rango para el estado crudo), pero eso no "
+                "elimina la estructura: `fmix32` es invertible y el periodo "
+                "sigue siendo 2^30.")
+    return " ".join(partes)
 
 
 def main():
@@ -1038,13 +1139,16 @@ def main():
 
         if testu01:
             f.write("## TestU01 (harness local)\n\n")
-            f.write("| bateria | modo | semilla | resultado | estadisticas fuera de rango |\n")
-            f.write("|---------|------|---------|-----------|------------------------------|\n")
+            f.write("| bateria | modo | semilla | resultado | estadisticas fuera de rango | medido |\n")
+            f.write("|---------|------|---------|-----------|------------------------------|--------|\n")
             for r in testu01:
                 mark = '✅ pasan todas' if r['pass'] else '❌ falla'
                 bat = r.get('battery', 'smallcrush')
+                when = r.get('measured_at', 'sin fecha')
+                if r.get('reused_from_cache'):
+                    when = f"{when} (cache)"
                 f.write(f"| {bat} | {r['mode']} | {r['seed']} | {mark} | "
-                        f"{r['n_failed']} de {r['n_statistics']} |\n")
+                        f"{r['n_failed']} de {r['n_statistics']} | {when} |\n")
             for r in [x for x in testu01 if not x['pass'] and x['failed']]:
                 f.write(f"\n- Fallos en `{r.get('battery', 'smallcrush')}` modo "
                         f"`{r['mode']}`: " + ", ".join(r['failed'][:12]) +
@@ -1093,7 +1197,9 @@ def main():
             n_mb=f"{n_values * 4 / 1e6:.1f}",
             n_xcheck=xcheck['n_values'],
             seeds=", ".join(str(s) for s in xcheck['checked_seeds']),
-            stat_seeds=", ".join(str(s) for s in seeds)))
+            stat_seeds=", ".join(str(s) for s in seeds),
+            smallcrush_text=smallcrush_text(testu01),
+            crush_text=crush_text(testu01)))
 
     print("\nReporte guardado en VALIDATION_REPORT.md")
 
