@@ -25,11 +25,18 @@
  *   salida = s
  *
  * Estado: 64 bits (un solo uint64_t).
- * Periodo: NO VERIFICADO. Esta cadena de multiplicacion-xorshift de 3 rondas
- *   no tiene un periodo 2^64 demostrado (no es un LCG con orden conocido):
- *   solo se ha comprobado que no repite en las primeras 100000 muestras.
+ * Periodo: cota inferior VERIFICADA por medicion. Cada paso es una
+ *   composicion de seis biyecciones de Z/2^64 (tres multiplicaciones por
+ *   constantes impares y tres xorshift con desplazamiento a la derecha), luego
+ *   el mapa M es una biyeccion: toda orbita es un ciclo puro, sin preperiodo,
+ *   y el estado 0 es un punto fijo. Eso NO fija el periodo, que se MIDIO con
+ *   el algoritmo de Brent: sin deteccion de ciclo en 2^37 pasos, el periodo
+ *   lambda > 2^37/3 > 4.58e10 (> 2^35) para tres semillas independientes.
+ *   El periodo exacto (del orden de 2^64) no es alcanzable por medicion
+ *   directa; ver mult_xorshift64_period_test.c.
  * Sumidero 0: la semilla 0 quedaria fija en 0; por eso la siembra fuerza
- *   estado impar (seed | 1).
+ *   estado impar (seed | 1). En 2.000.000 de muestras no se encontro ningun
+ *   otro punto fijo.
  * Velocidad: ~1.8 ns por iteracion.
  *
  * Uso:

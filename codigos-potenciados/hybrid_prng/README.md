@@ -59,14 +59,14 @@ gcc -std=c11 -O2 hybrid_prng_test.c hybrid_prng.c -o hybrid_prng_test
 ## Resultados esperados
 
 ```
-=== hybrid_prng (middle-square + msws64) - Test ===
+=== hybrid_prng (middle-square + mult_xorshift64) - Test ===
 
 Middle-square original (4 digitos):
   Ciclos: 8
   Zero sink: 1818 de 10000 (18.18%)
   Estado: ROTADO como PRNG independiente
 
-Hybrid PRNG (middle-square + msws64):
+Hybrid PRNG (middle-square + mult_xorshift64):
   Semilla: 1234
   Muestras: 100000
   Chi^2 (10 bins): ~10.0 (esperado ~9 para uniformidad)
@@ -81,6 +81,23 @@ Uso practico: generar IDs de 64 bits (ej. IDs de transaccion):
   ID 1: XXXXXXXXXXXXXXXX
   ...
 ```
+
+## Relación con `mult_xorshift64` (medido, no supuesto)
+
+La mezcla middle-square solo ocupa los **bits 32-63** de la salida, así que la
+**mitad baja coincide palabra a palabra** con la de `mult_xorshift64`
+sembrado igual. Medido con el arnés TestU01 (digest FNV-1a de 1.000.000 de
+salidas de 32 bits, `codigos-potenciados/testu01/run_prng_modules digest`):
+
+| Modo de troceado | `mult_xorshift64` | `hybrid_prng` | ¿Mismo flujo? |
+|---|---|---|---|
+| `low` (mitad baja) | `1d63fbd9ce5edc96` | `1d63fbd9ce5edc96` | **Sí, idéntico** |
+| `high` (mitad alta) | `e9fcb764c18a2c2f` | `0d340876c046d06b` | No |
+| `split` (ambas) | `cb18d4e799d20df4` | `fce7a59bc8f6e7e4` | No |
+
+Consecuencia práctica: medir `hybrid_prng` en modo `low` **no** es una
+medición independiente de `mult_xorshift64` en modo `low`. Para una
+comprobación independiente hay que usar `high` o `split`.
 
 ## Integración con el resto del proyecto
 

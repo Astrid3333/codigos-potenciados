@@ -23,6 +23,7 @@
 |---------|-----------|
 | `mult_xorshift64.h` | Cabecera con `mult_xorshift64_t`, `mult_xorshift64_seed`, `mult_xorshift64_next`, `mult_xorshift64_next_double`, `mult_xorshift64_next_bounded` |
 | `mult_xorshift64.c` | Test comparativo: middle-square original, referencia de Widynski (`../msws_widynski/`) y χ² básico |
+| `mult_xorshift64_period_test.c` | Medición del periodo (Brent), comprobación de biyectividad por inversa explícita y barrido de puntos fijos |
 | `README.md` | Este archivo |
 
 ## Fórmulas
@@ -56,15 +57,22 @@ salida = x
 | Propiedad | Estado |
 |-----------|--------|
 | Estado | 64 bits (`uint64_t`) |
-| Periodo | **No verificado.** No es un LCG con orden conocido; solo se comprobó que no repite en las primeras 100 000 muestras |
-| Sumidero 0 | La semilla 0 quedaría fija en 0; la siembra fuerza estado impar (`seed \| 1`) |
+| Periodo | **Cota inferior verificada:** λ > 2³⁷/3 ≈ 4.58·10¹⁰ (> 2³⁵), medida con Brent en tres semillas sin detección de ciclo en 2³⁷ pasos. El periodo exacto (orden 2⁶⁴) no es alcanzable por medición directa |
+| Preperiodo | Ninguno: cada paso es una composición de seis biyecciones de Z/2⁶⁴ (tres multiplicaciones por constantes impares y tres xorshift), luego el mapa de estado es una biyección y toda órbita es un ciclo puro |
+| Biyectividad | Verificada: la inversa explícita (unxorshift-right 27/31/17 + inversos modulares por Newton) satisface `M⁻¹(M(x)) = x` en 2.000.000 de valores, 0 fallos |
+| Sumidero 0 | La semilla 0 quedaría fija en 0; la siembra fuerza estado impar (`seed \| 1`). En 2.000.000 de muestras no se encontró ningún otro punto fijo |
 | χ² (10 bins, 100 000 muestras, semilla 1234) | 10.99 (9 g.l.; umbral 95% = 16.92) |
+| SmallCrush (TestU01 1.2.3) | 22 de 24 configuraciones (3 modos de troceado × 8 semillas) sin ninguna estadística fuera de rango. Las 2 excepciones son fallos **marginales de una sola estadística** (p = 0.9991, a 0.0001 del umbral 0.9990), compatibles con el ~0.7 de falsos positivos esperados en 360 comprobaciones |
 
 El χ² con 10 bins y 100 000 muestras es una comprobación **débil**: no tiene
 potencia contra sesgos de grano fino ni contra correlaciones. Las mediciones
 con tests reales (7 tests × 8 semillas, controles limpio y defectuoso,
 p-valores exactos) están en `VALIDATION_REPORT_PRNG_MODULES.md` en la raíz
-del repositorio, generadas por `prng_modules_validator.py`.
+del repositorio, generadas por `prng_modules_validator.py`. Las baterías de
+TestU01 sobre este generador (SmallCrush en los tres modos de troceado,
+junto con `hybrid_prng` y `xoshiro256**` como referencia) están en
+`VALIDATION_REPORT.md`, generadas por `randu_plus_validator.py` con el
+arnés `codigos-potenciados/testu01/run_prng_modules`.
 
 ## Uso
 
@@ -86,12 +94,20 @@ gcc -std=c11 -O2 -Wall -Wextra -pedantic mult_xorshift64.c -o mult_xorshift64_te
 ./mult_xorshift64_test
 ```
 
+Periodo y biyectividad (medición, no solo teoría):
+
+```bash
+gcc -std=c11 -O2 -Wall -Wextra -pedantic mult_xorshift64_period_test.c -o mult_xorshift64_period_test
+./mult_xorshift64_period_test                  # límite 2^28 (segundos)
+./mult_xorshift64_period_test 137438953472     # límite 2^37 (~12 min por semilla)
+```
+
 ## Comparativa (resultados del test incluido)
 
 | Generador | Ciclos (4 dígitos) | Zero sink | χ² (10 bins, 100k) | Velocidad |
 |-----------|-------------------|-----------|------------------|-----------|
 | middle-square | 8 | 18.18% | muy alto (sesgado) | lento (sprintf) |
-| este módulo | — (estado 64 bits) | evitado por siembra | 10.99 | ~1.8 ns/iteración |
+| este módulo | λ > 4.58·10¹⁰ (medido, sin preperiodo) | evitado por siembra | 10.99 | ~1.8 ns/iteración |
 
 ## Integración con el resto del proyecto
 

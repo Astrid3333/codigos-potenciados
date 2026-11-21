@@ -7,12 +7,19 @@
  * hybrid_prng.h - Generador PRNG híbrido moderno (C11)
  *
  * Combina middle-square de von Neumann (componente histórico, 4 dígitos)
- * con el generador de 64 bits del módulo msws64/ (cadena de
+ * con el generador de 64 bits del módulo mult_xorshift64/ (cadena de
  * multiplicación-xorshift; NO es el msws64 de Widynski).
  *
  * middle-square por sí solo está roto (ciclos cortos, colapso a cero).
  * El generador de 64 bits por sí solo es un PRNG decente de 64 bits.
  * El híbrido XOR de ambos produce buena distribución estadística.
+ *
+ * Nota estructural: la mezcla middle-square solo ocupa los bits 32-63, así
+ * que la mitad baja de la salida coincide palabra a palabra con la de
+ * mult_xorshift64 sembrado igual. Medido con el arnés TestU01
+ * (digest FNV-1a de 1.000.000 de salidas): en el modo `low` ambos
+ * generadores producen el mismo flujo; en `high` y `split` difieren.
+ * Ver `VALIDATION_REPORT.md`, sección "Flujos comparados".
  *
  * Uso:
  *   hybrid_prng_t rng;

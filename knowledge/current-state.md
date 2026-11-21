@@ -68,12 +68,59 @@
     `mult_xorshift64/{mult_xorshift64.h,mult_xorshift64.c,README.md}`,
     `hybrid_prng/README.md` (afirmación falsa corregida: el msws64 de Widynski
     NO es xorshift 12/25/27 con multiplicador `0x2545F4914F6CDD1D`).
-  - **Pendiente**: ítems 3-9 del ciclo 22 (conteo exacto de SmallCrush por
-    semilla, Crush/BigCrush frescos, extender el arnés TestU01 a
-    `mult_xorshift64`/`hybrid_prng`, renombrar/documentar `hastings/`, decidir
-    sobre el clon externo y sobre versionar la memoria del repo); nota del
-    ciclo 22 en `notes/2026-11-20.md`; commit local y **push solo con pedido
-    explícito**.
+  - **Pendiente**: ítems 7-9 del ciclo 22 (renombrar/documentar `hastings/`,
+    decidir sobre el clon externo y sobre versionar la memoria del repo);
+    commit local y **push solo con pedido explícito**.
+  - **Ítem 3 (cerrado)**: SmallCrush (TestU01 1.2.3) en modo `state` (estado
+    crudo del LCG) falla **14 de 15** estadísticas en **las 8 semillas**
+    (12345, 1, 3, 7, 4242, 65537, 99991, 2147483647), con la **misma** lista:
+    BirthdaySpacings, Collision, Gap, SimpPoker, CouponCollector, MaxOft,
+    WeightDistrib, MatrixRank, HammingIndep y RandomWalk1 H/M/J/R/C (la única
+    que pasa es RandomWalk1 N). En modo `fmix` pasan las 15 en las 8 semillas.
+    El validador ahora mide `state` en las 8 semillas y agrupa los fallos por
+    firma (commit local `adf35dd`).
+  - **Ítem 4 (parte medible, `mult_xorshift64`)**: el mapa de estado es una
+    **biyección de Z/2⁶⁴** (tres multiplicaciones por constantes impares + tres
+    xorshift), luego **no hay preperiodo** y 0 es el único punto fijo
+    (2.000.000 de muestras, 0 extras). La inversa explícita (unxorshift-right
+    27/31/17 + inversos modulares por Newton) satisface `M⁻¹(M(x)) = x` en
+    2.000.000 de valores, 0 fallos. El **periodo se midió** con Brent: sin
+    detección de ciclo en 2³⁷ pasos para 3 semillas → **λ > 2³⁷/3 ≈ 4.58·10¹⁰
+    (> 2³⁵)**; el periodo exacto (orden 2⁶⁴) no es alcanzable por medición.
+    Herramienta versionada: `codigos-potenciados/mult_xorshift64/
+    mult_xorshift64_period_test.c`.
+  - **Ítem 5 (arnés TestU01 extendido)**: nuevos `codigos-potenciados/testu01/
+    {uPrngModulos.c,uPrngModulos.h,run_prng_modules.c}`: someten a TestU01 los
+    generadores de 64 bits del repo (`mult_xorshift64`, `hybrid_prng`) y
+    `xoshiro256**` como referencia, en tres modos de troceado de la palabra de
+    64 bits (`low`, `high`, `split`). La implementación de `xoshiro256**` es la
+    del algoritmo publicado por Blackman/Vigna con siembra splitmix64 y se
+    verificó **bit a bit** (100.000 salidas) contra el puerto C++ de referencia.
+    TestU01 1.2.3 reconstruido en `/tmp/opencode/testu01_install` (el mirror
+    `blep/TestU01`, fuentes de la versión oficial) porque la instalación local
+    ya no estaba. Resultado medido con **3 generadores × 3 modos × 8 semillas
+    = 72 configuraciones**: **3 fallos aislados de una sola estadística**
+    (`mult_xorshift64`/low/4242 MatrixRank, `mult_xorshift64`/split/65537
+    MaxOft AD, `hybrid_prng`/low/4242 MatrixRank), los tres marginales
+    (p = 0.9991, a 0.0001 del umbral 0.9990) y compatibles con los ~0.7 falsos
+    positivos esperados en 360 comprobaciones por generador; `xoshiro256**`
+    no falla ninguna de sus 24. **Hallazgo estructural**: `hybrid_prng` en
+    modo `low` produce **el mismo flujo** que `mult_xorshift64` (digest FNV-1a
+    de 1.000.000 de salidas idéntico: `1d63fbd9ce5edc96`), porque la mezcla
+    middle-square solo ocupa los bits 32-63 → esas filas **no** son una
+    medición independiente. El arnés tiene un verbo `digest` para medirlo y
+    el informe lo publica.
+  - **Enlace estático del arnés**: el `Makefile` de `testu01/` enlaza contra
+    `libtestu01.a`/`libprobdist.a`/`libmylib.a` si existen
+    (`TESTU01_STATIC`, por defecto 1) → sin `LD_LIBRARY_PATH` en ejecución
+    (que ya había producido un "0 fallos" falso). La clave de caché de las
+    entradas de módulos incluye ahora el generador (`cache_key`).
+  - **Honestidad del informe (ítem 5)**: el párrafo de Crush del informe era
+    texto estático y afirmaba datos de Crush aunque esa corrida no los midiera.
+    Corregido: el texto se genera desde los datos de la corrida
+    (`smallcrush_text`, `crush_text`), la cache guarda `measured_at` y
+    `reused_from_cache`, y la tabla TestU01 tiene columna "medido"
+    (commits locales `550437b`, `adf35dd`).
 - Goal anterior: **ciclo 21** — corregir la atribución (segundo pase del revisor): el
   `msws64_widynski.h` añadido en el ciclo 20 era el **xorshift64\* de Vigna**, no
   el msws64 de Widynski; renombrar el módulo a `mult_xorshift64/` y añadir al

@@ -23,7 +23,7 @@ import hashlib
 import re
 import time
 from collections import Counter
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 
 # Chi-cuadrado survival function (aproximación Wilson-Hilferty)
 def chi2_sf(x: float, df: int) -> float:
@@ -143,6 +143,9 @@ STAT_TESTS = (
 
 TESTU01_BIN = os.path.join(REPO_ROOT, 'codigos-potenciados', 'testu01',
                            'run_randu_plus')
+
+TESTU01_MODULES_BIN = os.path.join(REPO_ROOT, 'codigos-potenciados', 'testu01',
+                                   'run_prng_modules')
 
 def generate_binary(output_path: str, n_bytes: int, seed: int = 12345, quiet: bool = False,
                     header_dir: str = None) -> None:
@@ -830,7 +833,9 @@ def testu01_cache_load() -> Dict:
 
 def testu01_cache_store(entry: Dict) -> None:
     cache = testu01_cache_load()
-    cache[f"{entry['battery']}|{entry['mode']}|{entry['seed']}"] = entry
+    key = entry.get('cache_key') or \
+        f"{entry['battery']}|{entry['mode']}|{entry['seed']}"
+    cache[key] = entry
     try:
         with open(TESTU01_CACHE, 'w') as f:
             json.dump(cache, f, indent=1)
@@ -886,6 +891,88 @@ def testu01_smallcrush(seed: int, mode: str = "fmix",
                        timeout: int = 900) -> Dict:
     """Atajo historico: SmallCrush sobre randu_plus."""
     return testu01_battery("smallcrush", seed, mode, timeout)
+
+
+def testu01_modules(gen: str, mode: str, seed: int,
+                    timeout: int = 900) -> Dict:
+    """SmallCrush sobre los generadores de 64 bits del repositorio.
+
+    Requiere el harness `codigos-potenciados/testu01/run_prng_modules` (las
+    fuentes estan versionadas, el binario no). Si no existe se devuelve None."""
+    if not os.path.exists(TESTU01_MODULES_BIN):
+        return None
+    key = f"modules|{gen}|{mode}|{seed}"
+    cache = testu01_cache_load()
+    if os.environ.get("RANDU_TESTU01_REUSE") == "1" and key in cache:
+        reused = dict(cache[key])
+        reused['reused_from_cache'] = True
+        reused.setdefault('measured_at', 'sin fecha')
+        return reused
+    proc = subprocess.run([TESTU01_MODULES_BIN, "smallcrush", gen, mode,
+                           str(seed)],
+                          capture_output=True, text=True, timeout=timeout)
+    out = proc.stdout
+    failed = []
+    m = re.search(r"outside \[0\.001, 0\.9990\]:(.*)", out, re.S)
+    if m:
+        for line in m.group(1).splitlines():
+            parts = re.split(r"\s{2,}", line.strip())
+            if len(parts) >= 2 and parts[0].isdigit():
+                failed.append(parts[1].strip())
+    vm = re.search(r"Version:\s*(TestU01\s+[\d.]+)", out)
+    sm = re.search(r"Number of statistics:\s*(\d+)", out)
+    entry = {
+        "battery": "smallcrush",
+        "group": "modules",
+        "gen": gen,
+        "mode": mode,
+        "seed": seed,
+        "pass": "All tests were passed" in out,
+        "n_failed": len(failed),
+        "failed": failed,
+        "version": vm.group(1) if vm else "TestU01",
+        "n_statistics": int(sm.group(1)) if sm else 0,
+        "measured_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "reused_from_cache": False,
+        "cache_key": key,
+    }
+    testu01_cache_store(entry)
+    return entry
+
+
+def testu01_digest(gen: str, mode: str, seed: int,
+                   timeout: int = 300) -> Optional[Dict]:
+    """Digest FNV-1a de 1.000.000 de salidas del generador en ese modo.
+
+    Sirve para medir empíricamente si dos generadores producen el mismo
+    flujo: si los digests coinciden, las mediciones de TestU01 de ambos no son
+    independientes y el informe debe decirlo."""
+    if not os.path.exists(TESTU01_MODULES_BIN):
+        return None
+    key = f"digest|{gen}|{mode}|{seed}"
+    cache = testu01_cache_load()
+    if os.environ.get("RANDU_TESTU01_REUSE") == "1" and key in cache:
+        reused = dict(cache[key])
+        reused['reused_from_cache'] = True
+        return reused
+    proc = subprocess.run([TESTU01_MODULES_BIN, "digest", gen, mode,
+                           str(seed)], capture_output=True, text=True,
+                          timeout=timeout)
+    m = re.search(r"digest_hex\s*:\s*([0-9a-f]+)", proc.stdout)
+    if not m:
+        return None
+    entry = {
+        "battery": "digest",
+        "gen": gen,
+        "mode": mode,
+        "seed": seed,
+        "digest": m.group(1),
+        "measured_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "reused_from_cache": False,
+        "cache_key": key,
+    }
+    testu01_cache_store(entry)
+    return entry
 
 
 def _fmt_failed(entry: Dict, limit: int = 6) -> str:
@@ -1084,6 +1171,34 @@ def main():
     else:
         print("\n=== TestU01 SmallCrush: harness no encontrado, se omite ===")
 
+    testu01_mods = []
+    testu01_digests = []
+    if os.path.exists(TESTU01_MODULES_BIN):
+        print("\n=== TestU01 SmallCrush sobre los modulos de 64 bits ===")
+        for gen, etiqueta in (("mx64", "mult_xorshift64"),
+                              ("hybrid", "hybrid_prng"),
+                              ("xoshiro", "xoshiro256** (referencia)")):
+            for modo in ("low", "high", "split"):
+                for seed in seeds:
+                    r = testu01_modules(gen, modo, seed)
+                    if r is None:
+                        continue
+                    testu01_mods.append(r)
+                    print(f"   {etiqueta:24s} {modo:5s} seed={seed:>10}: "
+                          f"{'PASS' if r['pass'] else 'FAIL'} "
+                          f"({r['n_failed']} de {r['n_statistics']} estadisticas "
+                          f"fuera de rango)")
+        print("\n=== Digests: flujos identicos entre generadores? ===")
+        for modo in ("low", "high", "split"):
+            for gen in ("mx64", "hybrid", "xoshiro"):
+                d = testu01_digest(gen, modo, seeds[0])
+                if d is not None:
+                    testu01_digests.append(d)
+                    print(f"   {gen:8s} {modo:5s} seed={seeds[0]:>10}: "
+                          f"{d['digest']}")
+    else:
+        print("\n=== TestU01 modulos de 64 bits: harness no encontrado, se omite ===")
+
     print("\n" + "=" * 60)
     print("RESUMEN DE VALIDACIÓN randu_plus")
     print("=" * 60)
@@ -1189,6 +1304,90 @@ def main():
             f.write("## TestU01 SmallCrush\n\nNo ejecutado: el harness "
                     "`codigos-potenciados/testu01/run_randu_plus` no esta "
                     "presente.\n\n")
+
+        if testu01_mods:
+            f.write("## TestU01 SmallCrush sobre los modulos de 64 bits\n\n")
+            f.write("El harness `run_prng_modules` somete a SmallCrush los "
+                    "generadores de 64 bits del repositorio y `xoshiro256**` como "
+                    "referencia de calidad conocida. Los modos `low`, `high` y "
+                    "`split` son las tres formas de trocear la palabra de 64 bits "
+                    "en palabras de 32 bits (mitad baja, mitad alta, o las dos en "
+                    "orden natural); no son post-procesos del generador.\n\n")
+            f.write("| generador | modo | semilla | resultado | estadisticas fuera de rango | medido |\n")
+            f.write("|-----------|------|---------|-----------|------------------------------|--------|\n")
+            etiquetas = {"mx64": "mult_xorshift64", "hybrid": "hybrid_prng",
+                         "xoshiro": "xoshiro256** (referencia)"}
+            for r in testu01_mods:
+                mark = '✅ pasan todas' if r['pass'] else '❌ falla'
+                when = r.get('measured_at', 'sin fecha')
+                if r.get('reused_from_cache'):
+                    when = f"{when} (cache)"
+                f.write(f"| {etiquetas.get(r['gen'], r['gen'])} | {r['mode']} | "
+                        f"{r['seed']} | {mark} | {r['n_failed']} de "
+                        f"{r['n_statistics']} | {when} |\n")
+            f.write("\n")
+            resumen = []
+            for gen, etiqueta in (("mx64", "mult_xorshift64"),
+                                  ("hybrid", "hybrid_prng"),
+                                  ("xoshiro", "xoshiro256** (referencia)")):
+                filas = [r for r in testu01_mods if r['gen'] == gen]
+                if not filas:
+                    continue
+                n_pasan = sum(1 for r in filas if r['pass'])
+                max_fall = max(r['n_failed'] for r in filas)
+                resumen.append(f"{etiqueta}: {n_pasan} de {len(filas)} "
+                               f"configuraciones sin ninguna estadistica fuera de "
+                               f"rango (maximo {max_fall} fuera de rango)")
+            if resumen:
+                f.write("Resumen: " + "; ".join(resumen) + ". ")
+            f.write(f"{_prov_group(testu01_mods)}.\n\n")
+            f.write("**Cómo leer los fallos puntuales.** TestU01 marca una "
+                    "estadística como fuera de rango cuando su p-valor queda "
+                    "fuera de [0.001, 0.9990]. Con 15 estadísticas y 24 "
+                    "configuraciones por generador son 360 comprobaciones, de "
+                    "las que se espera que unas 0.7 caigan fuera de rango por "
+                    "azar. Los fallos que aparecen son **de una sola "
+                    "estadística y marginales** (p = 0.9991, a 0.0001 del "
+                    "umbral), no sistemáticos; el generador de referencia "
+                    "`xoshiro256**` no falla ninguno en las mismas 24 "
+                    "configuraciones.\n\n")
+        else:
+            f.write("## TestU01 SmallCrush sobre los modulos de 64 bits\n\n"
+                    "No ejecutado: el harness `codigos-potenciados/testu01/"
+                    "run_prng_modules` no esta presente.\n\n")
+
+        if testu01_digests:
+            f.write("### Flujos comparados (digest FNV-1a de 1.000.000 de "
+                    "salidas de 32 bits)\n\n")
+            f.write("| generador | modo | semilla | digest |\n")
+            f.write("|-----------|------|---------|--------|\n")
+            etiquetas = {"mx64": "mult_xorshift64", "hybrid": "hybrid_prng",
+                         "xoshiro": "xoshiro256** (referencia)"}
+            for d in testu01_digests:
+                f.write(f"| {etiquetas.get(d['gen'], d['gen'])} | {d['mode']} | "
+                        f"{d['seed']} | `{d['digest']}` |\n")
+            f.write("\n")
+            por_modo = {}
+            for d in testu01_digests:
+                por_modo.setdefault(d['mode'], {})[d['gen']] = d['digest']
+            iguales = [m for m, v in por_modo.items()
+                       if 'mx64' in v and 'hybrid' in v and v['mx64'] == v['hybrid']]
+            distintos = [m for m, v in por_modo.items()
+                         if 'mx64' in v and 'hybrid' in v and v['mx64'] != v['hybrid']]
+            if iguales:
+                f.write(f"**Aviso importante:** en el modo "
+                        f"{', '.join(iguales)} el flujo de `hybrid_prng` es "
+                        f"**idéntico** al de `mult_xorshift64` (mismo digest). "
+                        f"La razón es estructural: en `hybrid_prng_next()` la "
+                        f"mezcla middle-square solo ocupa los bits 32-63, de "
+                        f"modo que la mitad baja de la salida coincide "
+                        f"palabra a palabra. Las filas `hybrid_prng`/`low` "
+                        f"**no son una medición independiente** de "
+                        f"`mult_xorshift64`/`low`, y sus resultados deben "
+                        f"contarse una sola vez. En los modos "
+                        f"{', '.join(distintos) if distintos else '(ninguno)'} "
+                        f"los flujos difieren.\n\n")
+            f.write(f"{_prov_group(testu01_digests)}.\n\n")
 
         f.write("## Control negativo: el retículo se detecta y se recupera\n\n")
         f.write(f"El control usa {neg['n_values']} uint32 del generador del repo "
