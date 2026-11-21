@@ -4,8 +4,8 @@
 
 **Semillas:** 12345, 1, 3, 7, 4242, 65537, 99991, 2147483647 (8 semillas impares distintas)
 **Muestra por semilla:** 1000000 uint32 (4.0 MB)
-**Fecha:** Fri Nov 20 10:21:45 PM -03 2026
-**Git commit:** ed74b8dd8541921f1299161ff0fd8fd8a1cb1a40
+**Fecha:** Fri Nov 20 10:28:38 PM -03 2026
+**Git commit:** eb894b508c55be21a1e04d65e40f0c38a6881ed9
 
 ## Resultados (peor caso entre semillas)
 
