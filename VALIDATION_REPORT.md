@@ -4,8 +4,8 @@
 
 **Semillas:** 12345, 1, 3, 7, 4242, 65537, 99991, 2147483647 (8 semillas impares distintas)
 **Muestra por semilla:** 1000000 uint32 (4.0 MB)
-**Fecha:** Sat Nov 21 02:45:29 AM -03 2026
-**Git commit:** adf35dd425aadf621496d0537c764969769bbcd3
+**Fecha:** Sat Nov 21 09:28:07 PM -03 2026
+**Git commit:** 08dc490e2372424cf39711bbe9b135c63b2d2726
 
 ## Resultados (peor caso entre semillas)
 
@@ -70,12 +70,18 @@
 | smallcrush | state | 2147483647 | ❌ falla | 14 de 15 | 2026-11-21 01:16:21 (cache) |
 | crush | fmix | 12345 | ❌ falla | 6 de 144 | 2026-11-21 01:47:25 (cache) |
 | crush | state | 12345 | ❌ falla | 131 de 144 | 2026-11-21 02:15:23 (cache) |
+| bigcrush | fmix | 12345 | ❌ falla | 26 de 160 | 2026-11-21 17:11:44 (cache) |
+| bigcrush | state | 12345 | ❌ falla | 133 de 156 | 2026-11-21 20:16:05 (cache) |
 
 - Fallos en `smallcrush` modo `state` (semillas 12345, 1, 3, 7, 4242, 65537, 99991, 2147483647): BirthdaySpacings, Collision, Gap, SimpPoker, CouponCollector, MaxOft, WeightDistrib, MatrixRank, HammingIndep, RandomWalk1 H, RandomWalk1 M, RandomWalk1 J...
 
 - Fallos en `crush` modo `fmix` (semilla 12345): Gap, r = 0, Gap, r = 22, MaxOft, t = 5, MaxOft, t = 10, MaxOft, t = 20, MaxOft, t = 30
 
 - Fallos en `crush` modo `state` (semilla 12345): SerialOver, t = 2, SerialOver, t = 4, CollisionOver, t = 2, CollisionOver, t = 2, CollisionOver, t = 4, CollisionOver, t = 4, CollisionOver, t = 8, CollisionOver, t = 8, CollisionOver, t = 20, CollisionOver, t = 20, BirthdaySpacings, t = 2, BirthdaySpacings, t = 3...
+
+- Fallos en `bigcrush` modo `fmix` (semilla 12345): SimpPoker, r = 27, SimpPoker, r = 25, CouponCollector, r = 0, CouponCollector, r = 10, CouponCollector, r = 20, CouponCollector, r = 27, Gap, r = 0, Gap, r = 25, Gap, r = 0, Gap, r = 20, Run, r = 0, MaxOft, t = 8...
+
+- Fallos en `bigcrush` modo `state` (semilla 12345): SerialOver, r = 0, SerialOver, r = 22, CollisionOver, t = 2, CollisionOver, t = 2, CollisionOver, t = 3, CollisionOver, t = 3, CollisionOver, t = 7, CollisionOver, t = 7, CollisionOver, t = 14, CollisionOver, t = 14, CollisionOver, t = 21, CollisionOver, t = 21...
 
 Version: TestU01 1.2.3. Harness: `codigos-potenciados/testu01/run_randu_plus` (fuentes versionadas; el binario se construye con el `Makefile` de ese directorio).
 
@@ -178,7 +184,7 @@ Resumen: mult_xorshift64: 22 de 24 configuraciones sin ninguna estadistica fuera
 
 **Aviso importante:** en el modo low el flujo de `hybrid_prng` es **idéntico** al de `mult_xorshift64` (mismo digest). La razón es estructural: en `hybrid_prng_next()` la mezcla middle-square solo ocupa los bits 32-63, de modo que la mitad baja de la salida coincide palabra a palabra. Las filas `hybrid_prng`/`low` **no son una medición independiente** de `mult_xorshift64`/`low`, y sus resultados deben contarse una sola vez. En los modos high, split los flujos difieren.
 
- (medido el 2026-11-21 02:45:29).
+ (medido el 2026-11-21 02:45:29, dato reutilizado de la cache).
 
 ## Control negativo: el retículo se detecta y se recupera
 
@@ -253,6 +259,11 @@ La batería **Crush** (144 estadísticas, 10 veces más que SmallCrush) va más
 allá; lo que mide esta corrida es lo siguiente:
 
 modo `fmix` (semilla 12345): fallan 6 de 144 estadisticas (Gap, r = 0, Gap, r = 22, MaxOft, t = 5, MaxOft, t = 10, MaxOft, t = 20, MaxOft, t = 30) (medido el 2026-11-21 01:47:25, dato reutilizado de la cache). modo `state` (semilla 12345): fallan 131 de 144 estadisticas (SerialOver, t = 2, SerialOver, t = 4, CollisionOver, t = 2, CollisionOver, t = 2, CollisionOver, t = 4, CollisionOver, t = 4, ...) (medido el 2026-11-21 02:15:23, dato reutilizado de la cache). Es decir: la salida mezclada **tambien falla** a escala Crush (6 de 144), aunque mucho menos que el estado crudo (131 de 144); `fmix32` oculta el reticulo en caja negra a escala SmallCrush, no a escala Crush, y desde luego no lo elimina ni cambia el periodo (2^30).
+
+La batería **BigCrush** es la más larga de TestU01 y tarda varias horas por
+modo. El número de estadísticas de cada corrida se reporta a continuación:
+
+modo `fmix` (semilla 12345): fallan 26 de 160 estadisticas (SimpPoker, r = 27, SimpPoker, r = 25, CouponCollector, r = 0, CouponCollector, r = 10, CouponCollector, r = 20, CouponCollector, r = 27, ...) (medido el 2026-11-21 17:11:44, dato reutilizado de la cache). modo `state` (semilla 12345): fallan 133 de 156 estadisticas (SerialOver, r = 0, SerialOver, r = 22, CollisionOver, t = 2, CollisionOver, t = 2, CollisionOver, t = 3, CollisionOver, t = 3, ...) (medido el 2026-11-21 20:16:05, dato reutilizado de la cache).
 
 El harness de TestU01 está **versionado** en `codigos-potenciados/testu01/`
 (fuentes y `Makefile`); los binarios `run_randu_plus` y `lattice_recovery` no se

@@ -698,8 +698,8 @@ allá; lo que mide esta corrida es lo siguiente:
 
 {crush_text}
 
-La batería **BigCrush** (414 estadísticas) es la más larga de TestU01 y tarda
-varias horas por modo:
+La batería **BigCrush** es la más larga de TestU01 y tarda varias horas por
+modo. El número de estadísticas de cada corrida se reporta a continuación:
 
 {bigcrush_text}
 
@@ -987,10 +987,10 @@ def bigcrush_text(entries: List[Dict]) -> str:
     casi siempre se ejecuta aparte y se reutiliza desde la cache."""
     bc = [e for e in entries if e.get('battery') == 'bigcrush']
     if not bc:
-        return ("La bateria **BigCrush** (414 estadisticas) **no se ejecuto en "
-                "esta corrida**: este informe no afirma ningun resultado de "
-                "BigCrush. Para incluirla hay que correr el validador con "
-                "`RANDU_TESTU01_BIGCRUSH=1` (varias horas por modo y semilla).")
+        return ("La bateria **BigCrush** **no se ejecuto en esta corrida**: este "
+                "informe no afirma ningun resultado de BigCrush. Para incluirla "
+                "hay que correr el validador con `RANDU_TESTU01_BIGCRUSH=1` "
+                "(varias horas por modo y semilla).")
     partes = []
     for e in sorted(bc, key=lambda x: x['mode']):
         marca = "pasan todas" if not e['failed'] else "fallan"
