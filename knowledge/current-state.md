@@ -68,8 +68,7 @@
     `mult_xorshift64/{mult_xorshift64.h,mult_xorshift64.c,README.md}`,
     `hybrid_prng/README.md` (afirmación falsa corregida: el msws64 de Widynski
     NO es xorshift 12/25/27 con multiplicador `0x2545F4914F6CDD1D`).
-  - **Pendiente**: cierre del **ítem 4** (BigCrush en curso) y **push solo con
-    pedido explícito**.
+  - **Ítem 4 (cerrado)**: BigCrush medido en `randu_plus` (semilla 12345): `fmix` fallan 26 de 160 estadísticas, `state` fallan 133 de 156 (ambas baterías fallan, como es esperado para el RANDU de control negativo). Informe en `VALIDATION_REPORT.md` (commit `1f9356c`). **Push solo con pedido explícito.**
   - **Ítem 8 (cerrado)**: `/home/astrid/codigos-potenciados` es un clon limpio
     del **mismo** repo (mismo origin), parado en `ed74b8d` (push del ciclo 21),
     **ancestro** del HEAD del workspace y sin trabajo único. Se **actualizó in
@@ -129,6 +128,9 @@
     (> 2³⁵)**; el periodo exacto (orden 2⁶⁴) no es alcanzable por medición.
     Herramienta versionada: `codigos-potenciados/mult_xorshift64/
     mult_xorshift64_period_test.c`.
+    BigCrush (TestU01, semilla 12345): `fmix` fallan 26 de 160 estadísticas,
+    `state` fallan 133 de 156 (ambas fallan, como cabe esperar del RANDU de
+    control negativo). Informe en `VALIDATION_REPORT.md`.
   - **Ítem 5 (arnés TestU01 extendido)**: nuevos `codigos-potenciados/testu01/
     {uPrngModulos.c,uPrngModulos.h,run_prng_modules.c}`: someten a TestU01 los
     generadores de 64 bits del repo (`mult_xorshift64`, `hybrid_prng`) y
